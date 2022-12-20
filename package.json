@@ -13,10 +13,11 @@
     "url": "https://github.com/oakmac/hat-tourney-builder/issues"
   },
   "scripts": {
-    "build": "shadow-cljs release hat-tourney-builder"
+    "build": "shadow-cljs release hat-tourney-builder",
+    "server": "serve public/"
   },
   "devDependencies": {
-    "serve": "14.0.1",
+    "serve": "14.1.2",
     "shadow-cljs": "2.20.15"
   }
 }

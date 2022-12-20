@@ -18,9 +18,13 @@ UI tool for sorting teams for an Ultimate hat tournament.
 Make sure ClojureScript tooling is installed, then:
 
 ```sh
-# one-time library install
-npm install
+## one-time library install
+bun install
 
+## run a local webserver out of the public/ folder
+bun run server
+
+## build public/js/main.js
 npm run build
 ```
 
