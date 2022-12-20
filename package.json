@@ -1,0 +1,22 @@
+{
+  "author": "Chris Oakman <chris@oakmac.com> (https://chrisoakman.com)",
+  "description": "Hat Tourney Builder",
+  "license": "ISC",
+  "name": "@chrisoakman/hat-tourney-builder",
+  "version": "0.1.0",
+  "homepage": "TODO",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oakmac/hat-tourney-builder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/oakmac/hat-tourney-builder/issues"
+  },
+  "scripts": {
+    "build": "shadow-cljs release hat-tourney-builder"
+  },
+  "devDependencies": {
+    "serve": "14.0.1",
+    "shadow-cljs": "2.20.15"
+  }
+}

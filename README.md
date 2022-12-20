@@ -6,6 +6,8 @@ UI tool for sorting teams for an Ultimate hat tournament.
 
 - https://github.com/eanway/SortingHat
 - drag-and-drop names onto columns
+- [MDN Drag and Drop](https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API)
+- [MDN Drag and Drop Example1](https://mdn.github.io/dom-examples/drag-and-drop/copy-move-DataTransfer.html)
 - link players together
 - pink boxes for women, blue for guys
 - variable number of columns
@@ -19,7 +21,7 @@ Make sure ClojureScript tooling is installed, then:
 # one-time library install
 npm install
 
-npx shadow-cljs compile <name>
+npm run build
 ```
 
 ## License
