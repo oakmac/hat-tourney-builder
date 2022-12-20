@@ -4,6 +4,7 @@ UI tool for sorting teams for an Ultimate hat tournament.
 
 ## Notes
 
+- [SortableJS Demo](https://sortablejs.github.io/Sortable/), [GitHub](https://github.com/SortableJS/Sortable)
 - https://github.com/eanway/SortingHat
 - drag-and-drop names onto columns
 - [MDN Drag and Drop](https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API)
