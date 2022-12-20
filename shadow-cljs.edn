@@ -1,7 +1,11 @@
 {:source-paths ["src"]
 
  :dependencies
- [[cjohansen/dumdom "2022.09.28"]]
+ [
+  [cjohansen/dumdom "2022.09.28"]
+
+  [macchiato/hiccups "0.4.1"]
+  [binaryage/oops "0.7.2"]]
 
  :builds
  {:hat-tourney-builder
