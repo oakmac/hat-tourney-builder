@@ -1,0 +1,10 @@
+.clj-kondo/
+.DS_Store
+.lsp/
+.shadow-cljs/
+dist/
+node_modules/
+target/
+public/js/
+
+*.diff
