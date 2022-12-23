@@ -12,12 +12,107 @@
     <link rel="manifest" href="/manifest.webmanifest"> -->
 
     <!-- <link rel="stylesheet" href="css/hat-tourney-builder.css" /> -->
+
+<style type="text/css">
+
+.list-group.col {
+  border: 1px solid blue;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.player-box {
+  border: 1px solid black;
+  padding: 8px 16px;
+}
+
+.sex-female {
+    background: #ff9bad;
+}
+
+.sex-male {
+    background: #d5d5f6;
+}
+
+.columns-wrapper {
+  display: flex;
+  flex-direction: row;
+}
+
+#linkBox {
+  background: #d5d5fd;
+  height: 180px;
+  padding: 1em;
+  width: 300px;
+}
+
+#unlinkBox {
+  background: #f9aeae;
+  height: 180px;
+  padding: 1em;
+  width: 300px;
+}
+
+.player-group {
+  border: 1px dashed black;
+  padding: 4px;
+}
+
+</style>
+
 </head>
 
 <body>
 
 <div id="appContainer"></div>
-<script src="js/main.js"></script>
+
+<div class="columns-wrapper">
+
+<div id="col1" class="list-group col">
+    <div id="chrisoakman" class="player-box sex-male">Chris Oakman</div>
+    <div id="laurenoakman" class="player-box sex-female">Lauren Oakman</div>
+    <div id="gillian" class="player-box sex-female">Gillian Maleski</div>
+    <div id="david" class="player-box sex-male">David Waters</div>
+    <div id="saraw" class="player-box sex-female">Sara Wise</div>
+    <div id="oliverg" class="player-box sex-male">Oliver Geser</div>
+    <div id="zach-h" class="player-box sex-male">Zachary Harris</div>
+</div>
+
+<div id="col2" class="list-group col">
+    <div class="player-box">Item 1</div>
+    <div class="player-box">Item 2</div>
+    <div class="player-box">Item 3</div>
+    <div class="player-box">Item 4</div>
+    <div class="player-box">Item 5</div>
+    <div class="player-box">Item 6</div>
+</div>
+
+<div id="col3" class="list-group col">
+    <div class="player-box">Item 1</div>
+    <div class="player-box">Item 2</div>
+    <div class="player-box">Item 3</div>
+    <div class="player-box">Item 4</div>
+    <div class="player-box">Item 5</div>
+    <div class="player-box">Item 6</div>
+</div>
+
+</div>
+
+<div style="display: flex; flex-direction: row;">
+    <div style="margin-right: 1em;">
+        <h2>Link Box</h2>
+        <div id="linkBox"></div>
+    </div>
+    <div>
+        <h2>Unlink Box</h2>
+        <div id="unlinkBox"></div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/sortablejs@1.15.0/Sortable.min.js" integrity="sha384-eeLEhtwdMwD3X9y+8P3Cn7Idl/M+w8H4uZqkgD/2eJVkWIN1yKzEj6XegJ9dL3q0" crossorigin="anonymous"></script>
+<!-- <script src="js/main.js"></script> -->
+<script src="jsjsjs.js"></script>
 
 </body>
 </html>
