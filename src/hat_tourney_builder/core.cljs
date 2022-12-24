@@ -9,7 +9,10 @@
     [hiccups.core :as hiccups :refer [html]]))
 
 ;; TODO:
-;; - when drop to list, update counts
+;; - search All Players
+;; - import player list
+;; - export teams list
+;; - save state on page refresh, store state in localStorage
 
 (defn compare-players
   "sort players: female first, then sort by name"
@@ -33,29 +36,29 @@
   [{:id "1232341232"
     :name "Chris Oakman"
     :sex "male"
-    :rank 7
+    :strength 7
     :baggage-id "888882222"}
    {:id "823723232"
     :name "Lauren Oakman"
     :sex "female"
-    :rank 8
+    :strength 8
     :baggage-id "888882222"}
    {:id "2328d99f83"
     :name "Gillian Maleski"
     :sex "female"
-    :rank 8}
+    :strength 8}
    {:id "234383jd"
     :name "David Waters"
     :sex "male"
-    :rank 9}
+    :strength 9}
    {:id "djeue8d822"
     :name "Oliver Geser"
     :sex "male"
-    :rank 8}
+    :strength 8}
    {:id "999222822"
     :name "Sara Wise"
     :sex "female"
-    :rank 8}])
+    :strength 8}])
 
 (def state
   (atom
@@ -72,9 +75,47 @@
                        nil))}
     name])
 
+(defn male? [player]
+  (= (:sex player) "male"))
+
+(defn female? [player]
+  (= (:sex player) "female"))
+
+(defn players->summary
+  [players]
+  {:num-males (count (filter male? players))
+   :num-females (count (filter female? players))
+   :total (count players)
+   :avg-strength (if (zero? (count players))
+                   0
+                   (/ (reduce + 0 (map :strength players))
+                      (count players)))})
+
+(defn format-strength-number
+  [n]
+  (.replace (str n) #"(\.\d\d)(\d+)$" "$1"))
+
+(defn TeamSummary
+  [{:keys [avg-strength num-females num-males total]}]
+  [:table
+   [:tbody
+    [:tr
+     [:td "Total"]
+     [:td total]]
+    [:tr
+     [:td "Females"]
+     [:td num-females]]
+    [:tr
+     [:td "Males"]
+     [:td num-males]]
+    [:tr
+     [:td "Avg Strength"]
+     [:td (format-strength-number avg-strength)]]]])
+
 (defn Column [{:keys [title list-id list-items]}]
   [:div.col-wrapper-outer
     [:h2 title]
+    [:div {:id (str list-id "-summary")}]
     [:div {:id list-id
            :class "col-wrapper-inner"}
       (map PlayerBox list-items)]])
@@ -162,6 +203,12 @@
     (timbre/info "Unlinking" (count players) "players:" players)
     (set-inner-html! "unlinkBox" (html (map PlayerBox players)))))
 
+(defn update-team-summary! [team-id]
+  (let [players (get-all-players-in-dom-element team-id)
+        summary-id (str team-id "-summary")
+        summary (players->summary players)]
+    (set-inner-html! summary-id (html (TeamSummary summary)))))
+
 (defn init-sortable-list!
   [id {:keys [on-add on-remove]}]
   (js/window.Sortable.
@@ -180,7 +227,12 @@
       (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box})
 
       (doseq [itm teams-cols]
-        (init-sortable-list! (:id itm) itm)))))
+        (init-sortable-list!
+          (:id itm)
+          {:on-add (fn [_js-evt]
+                     (update-team-summary! (:id itm)))
+           :on-remove (fn [_js-evt]
+                        (update-team-summary! (:id itm)))})))))
 
 ;; -----------------------------------------------------
 ;; Init
