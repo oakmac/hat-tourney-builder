@@ -2,17 +2,17 @@
 
 UI tool for sorting teams for an Ultimate hat tournament.
 
-## Notes
+## TODO
 
-- [SortableJS Demo](https://sortablejs.github.io/Sortable/), [GitHub](https://github.com/SortableJS/Sortable)
+- multiple "projects" in the browser
+- save state on every change; ability to refresh page
+- search All Players list
+- dynamic Teams Columns
+- import player list
+- export player / team list
+- styling
+- package Sortable with the CLJS?
 - https://github.com/eanway/SortingHat
-- drag-and-drop names onto columns
-- [MDN Drag and Drop](https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API)
-- [MDN Drag and Drop Example1](https://mdn.github.io/dom-examples/drag-and-drop/copy-move-DataTransfer.html)
-- link players together
-- pink boxes for women, blue for guys
-- variable number of columns
-- average score per column, num of females, guys
 
 ## Development
 
