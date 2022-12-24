@@ -8,11 +8,12 @@
   (:require-macros
     [hiccups.core :as hiccups :refer [html]]))
 
-;; TODO:
-;; - search All Players
-;; - import player list
-;; - export teams list
-;; - save state on page refresh, store state in localStorage
+(declare get-all-players-in-dom-element render!)
+
+(defn refresh!
+  "this function gets triggered after every shadow-cljs reload"
+  []
+  (render!))
 
 (defn compare-players
   "sort players: female first, then sort by name"
@@ -24,13 +25,6 @@
     (cond
       (not= a-sex b-sex) (compare a-sex b-sex)
       :else (compare a-name b-name))))
-
-(declare get-all-players-in-dom-element render!)
-
-(defn refresh!
-  "this function gets triggered after every shadow-cljs reload"
-  []
-  (render!))
 
 (def all-players
   [{:id "1232341232"
@@ -93,7 +87,9 @@
 
 (defn format-strength-number
   [n]
-  (.replace (str n) #"(\.\d\d)(\d+)$" "$1"))
+  (-> (.toFixed n 2)
+    (.replace #"\.00$" "")
+    (.replace #"0$" "")))
 
 (defn TeamSummary
   [{:keys [avg-strength num-females num-males total]}]
@@ -216,7 +212,6 @@
     (js-obj "animation" 150
             "group" "shared"
             "onAdd" (when on-add on-add)
-            ; "onEnd" on-end-list
             "onRemove" (when on-remove on-remove))))
 
 (def add-events!
@@ -234,7 +229,7 @@
            :on-remove (fn [_js-evt]
                         (update-team-summary! (:id itm)))})))))
 
-;; -----------------------------------------------------
+;; -----------------------------------------------------------------------------
 ;; Init
 
 ;; NOTE: this is a "run once" function
