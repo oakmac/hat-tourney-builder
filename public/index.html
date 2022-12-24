@@ -15,24 +15,45 @@
 
 <style type="text/css">
 
-.list-group.col {
+.col-wrapper-outer {
   border: 1px solid blue;
   display: flex;
   flex-direction: column;
   padding: 16px;
 }
 
+.col-wrapper-inner {
+  border: 1px dashed #ccc;
+  min-height: 160px;
+  padding: 6px;
+}
+
 .player-box {
-  border: 1px solid black;
+  border: 2px solid black;
+  margin-bottom: 2px;
   padding: 8px 16px;
 }
 
+.linked-players-box {
+  border: 2px solid black;
+}
+
+.linked-players-box .player-box {
+  border: 0;
+  border-bottom: 1px solid #888;
+  margin-bottom: 0;
+}
+
+.linked-players-box .player-box:last-child {
+  border-bottom: 0;
+}
+
 .sex-female {
-    background: #ff9bad;
+  background: #ff9bad;
 }
 
 .sex-male {
-    background: #d5d5f6;
+  background: #d5d5f6;
 }
 
 .columns-wrapper {
@@ -67,7 +88,7 @@
 
 <div id="appContainer"></div>
 
-<div class="columns-wrapper">
+<!-- <div class="columns-wrapper">
 
 <div id="col1" class="list-group col">
     <div id="chrisoakman" class="player-box sex-male">Chris Oakman</div>
@@ -97,9 +118,9 @@
     <div class="player-box">Item 6</div>
 </div>
 
-</div>
+</div> -->
 
-<div style="display: flex; flex-direction: row;">
+<!-- <div style="display: flex; flex-direction: row;">
     <div style="margin-right: 1em;">
         <h2>Link Box</h2>
         <div id="linkBox"></div>
@@ -108,11 +129,11 @@
         <h2>Unlink Box</h2>
         <div id="unlinkBox"></div>
     </div>
-</div>
+</div> -->
 
 <script src="https://unpkg.com/sortablejs@1.15.0/Sortable.min.js" integrity="sha384-eeLEhtwdMwD3X9y+8P3Cn7Idl/M+w8H4uZqkgD/2eJVkWIN1yKzEj6XegJ9dL3q0" crossorigin="anonymous"></script>
-<!-- <script src="js/main.js"></script> -->
-<script src="jsjsjs.js"></script>
+<script src="js/main.js"></script>
+<!-- <script src="jsjsjs.js"></script> -->
 
 </body>
 </html>

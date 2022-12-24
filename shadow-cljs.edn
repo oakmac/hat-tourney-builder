@@ -1,14 +1,13 @@
 {:source-paths ["src"]
 
  :dependencies
- [
-  [cjohansen/dumdom "2022.09.28"]
-
-  [macchiato/hiccups "0.4.1"]
-  [binaryage/oops "0.7.2"]]
+ [[binaryage/oops "0.7.2"]
+  [com.taoensso/timbre "6.0.4"]
+  [macchiato/hiccups "0.4.1"]]
 
  :builds
  {:hat-tourney-builder
   {:target :browser
    :output-dir "public/js"
+   :devtools {:after-load hat-tourney-builder.core/refresh!}
    :modules {:main {:entries [hat-tourney-builder.core]}}}}}

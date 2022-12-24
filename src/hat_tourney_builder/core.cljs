@@ -1,14 +1,21 @@
 (ns hat-tourney-builder.core
   (:require
-    [oops.core :refer [oset!]]
-    ; [dumdom.core :as dumdom :refer [defcomponent]]
     [goog.functions :as gfunctions]
+    [hat-tourney-builder.util.dom :refer [add-event! get-element query-select-all set-inner-html!]]
     [hiccups.runtime :as hiccups]
-    [hat-tourney-builder.util.dom :as dom-util :refer [set-inner-html!]])
+    [oops.core :refer [oget oset!]]
+    [taoensso.timbre :as timbre])
   (:require-macros
     [hiccups.core :as hiccups :refer [html]]))
 
-(def people
+(declare get-all-players-in-dom-element render!)
+
+(defn refresh!
+  "this function gets triggered after every shadow-cljs reload"
+  []
+  (render!))
+
+(def all-players
   [{:id "1232341232"
     :name "Chris Oakman"
     :sex "male"
@@ -36,49 +43,130 @@
     :sex "female"
     :rank 8}])
 
+(def state
+  (atom
+    {:all-players (zipmap (map :id all-players) all-players)}))
 
-; (def state
-;   (atom
-;     {:all-users}))
+(defn PlayerBox
+  [{:keys [id name sex rank]}]
+  [:div {:id id
+         :class (str "player-box "
+                     (case sex
+                       "male" "sex-male"
+                       "female" "sex-female"
+                       ;; TODO: warn here
+                       nil))}
+    name])
 
+(defn Column [{:keys [title list-id list-items]}]
+  [:div.col-wrapper-outer
+    [:h2 title]
+    [:div {:id list-id
+           :class "col-wrapper-inner"}
+      (map PlayerBox list-items)]])
 
+(def teams-cols
+  [{:id "list-team1"}
+   {:id "list-team2"}
+   {:id "list-team3"}
+   {:id "list-team4"}])
 
-; (hiccups/defhtml ListItem [{:keys [label]}]
-;   [:div.list-item
-;    ; {:id id}
-;    label])
+(defn Columns []
+  [:div.columns-wrapper
+   (Column {:list-id "allPlayersList"
+            :title "All Players"
+            :list-items all-players})
+   (Column {:list-id "list-team1"
+            :title "Team 1"
+            :list-items []})
+   (Column {:list-id "list-team2"
+            :title "Team 2"
+            :list-items []})
+   (Column {:list-id "list-team3"
+            :title "Team 3"
+            :list-items []})
+   (Column {:list-id "list-team4"
+            :title "Team 4"
+            :list-items []})])
 
-; (hiccups/defhtml Column [{:keys [id]}])
-(defn Foo [{:keys [id]}]
-  [:div.column "column!"])
+(defn LinkBoxes []
+  [:div {:style "display: flex; flex-direction: row;"}
+    [:div {:style "margin-right: 1em;"}
+      [:h2 "Link Box"]
+      [:div#linkBox]]
+    [:div
+      [:h2 "Unlink Box"]
+      [:div#unlinkBox]]])
 
-   ; {:id id}
-   ; (str "column " id)])
-   ; (ListItem {:label "Item 1"})
-   ; (ListItem {:label "Item 2"})
-   ; (ListItem {:label "Item 3"})
-   ; (ListItem {:label "Item 4"})
-   ; (ListItem {:label "Item 5"})])
+;; TODO: do we need a group-id here?
+(hiccups/defhtml LinkedPlayersBox [players]
+  [:div.linked-players-box
+   (map PlayerBox players)])
 
 (hiccups/defhtml HatTourneyBuilder []
   [:div
    [:h1 "Hat Tourney Builder"]
    [:hr]
-   (Foo "one")
-   (Foo "two")])
-
-    ; (list
-    ;   [Column {:id "col1"}]
-    ;   [Column {:id "col2"}]
-    ;   [Column {:id "col3"}]
-    ;   [Column {:id "col4"}])]])
-
-   ; [:div "TODO: columns"]
-   ; [:div "TODO: example player boxes"]
-   ; [:div "TODO: drag-to-link box?"]])
+   (Columns)
+   (LinkBoxes)])
 
 (defn render! []
   (set-inner-html! "appContainer" (HatTourneyBuilder)))
+
+(defn on-add-link-box
+  "fires when a player has been added to the Link Box"
+  [_js-evt]
+  (let [players (get-all-players-in-dom-element "linkBox")]
+    ;; TODO: sort players here
+    (set-inner-html! "linkBox" (LinkedPlayersBox players))))
+
+(defn get-all-player-ids-in-dom-element
+  "returns a collection of all player ids within a DOM element"
+  [el-id]
+  (let [selector (str "#" el-id " .player-box")
+        els (query-select-all selector)
+        ids (atom [])]
+    (.forEach els (fn [el]
+                    (swap! ids conj (oget el "id"))))
+    @ids))
+
+(defn get-all-players-in-dom-element
+  "returns a collection of all players within a DOM element"
+  [el-id]
+  (let [player-ids (get-all-player-ids-in-dom-element el-id)
+        all-players-map (:all-players @state)
+        players (map
+                  (fn [player-id]
+                    (if-let [p (get all-players-map player-id)]
+                      p
+                      (timbre/warn "Unable to find player with id:" player-id)))
+                  player-ids)]
+    (remove nil? players)))
+
+(defn on-add-unlink-box [_js-evt]
+  (let [players (get-all-players-in-dom-element "unlinkBox")]
+    (timbre/info "Unlinking" (count players) "players:" players)
+    (set-inner-html! "unlinkBox" (html (map PlayerBox players)))))
+
+(defn init-sortable-list!
+  [id {:keys [on-add on-remove]}]
+  (js/window.Sortable.
+    (get-element id)
+    (js-obj "animation" 150
+            "group" "shared"
+            "onAdd" (when on-add on-add)
+            ; "onEnd" on-end-list
+            "onRemove" (when on-remove on-remove))))
+
+(def add-events!
+  (gfunctions/once
+    (fn []
+      (init-sortable-list! "allPlayersList" {})
+      (init-sortable-list! "linkBox" {:on-add on-add-link-box})
+      (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box})
+
+      (doseq [itm teams-cols]
+        (init-sortable-list! (:id itm) itm)))))
 
 ;; -----------------------------------------------------
 ;; Init
@@ -87,7 +175,8 @@
 (def init!
   (gfunctions/once
     (fn []
-      (js/console.log "Initialized Tourney Hat Builder 😎")
-      (render!))))
+      (timbre/info "Initialized Tourney Hat Builder 😎")
+      (render!)
+      (add-events!))))
 
 (.addEventListener js/window "load" init!)

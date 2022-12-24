@@ -30,6 +30,11 @@
       (let [el2 (.querySelector js/document arg)]
         (if el2 el2 nil)))))
 
+(defn add-event!
+  [el-or-id evt-type evt-fn]
+  (.addEventListener (get-element el-or-id) evt-type (fn [js-evt]
+                                                       (evt-fn js-evt))))
+
 (defn xy-inside-element?
   [el x y]
   (let [js-box (.getBoundingClientRect el)
