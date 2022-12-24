@@ -8,6 +8,20 @@
   (:require-macros
     [hiccups.core :as hiccups :refer [html]]))
 
+;; TODO:
+;; - when drop to list, update counts
+
+(defn compare-players
+  "sort players: female first, then sort by name"
+  [player-a player-b]
+  (let [a-sex (:sex player-a)
+        b-sex (:sex player-b)
+        a-name (:name player-a)
+        b-name (:name player-b)]
+    (cond
+      (not= a-sex b-sex) (compare a-sex b-sex)
+      :else (compare a-name b-name))))
+
 (declare get-all-players-in-dom-element render!)
 
 (defn refresh!
@@ -116,9 +130,9 @@
 (defn on-add-link-box
   "fires when a player has been added to the Link Box"
   [_js-evt]
-  (let [players (get-all-players-in-dom-element "linkBox")]
-    ;; TODO: sort players here
-    (set-inner-html! "linkBox" (LinkedPlayersBox players))))
+  (let [players (get-all-players-in-dom-element "linkBox")
+        sorted-players (sort compare-players players)]
+    (set-inner-html! "linkBox" (LinkedPlayersBox sorted-players))))
 
 (defn get-all-player-ids-in-dom-element
   "returns a collection of all player ids within a DOM element"
