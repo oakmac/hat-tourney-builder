@@ -4,12 +4,11 @@ UI tool for sorting teams for an Ultimate hat tournament.
 
 ## TODO
 
-- multiple "projects" in the browser
-- save state on every change; ability to refresh page
+- ability to refresh the page and not lose data
 - search All Players list
-- dynamic Teams Columns
-- import player list
-- export player / team list
+- ability to edit team name
+- ability to delete team column
+- export player / team list as CSV
 - styling
 - package Sortable with the CLJS?
 - https://github.com/eanway/SortingHat
