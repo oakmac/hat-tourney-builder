@@ -23,7 +23,8 @@
 (defn refresh!
   "this function gets triggered after every shadow-cljs reload"
   []
-  (initial-render!))
+  ; (initial-render!))
+  nil)
 
 (defn compare-players
   "sort players: female first, then sort by name"
@@ -65,7 +66,8 @@
 (def state
   (atom
     {; :all-players (zipmap (map :id all-players-example) all-players-example)
-     :all-players {}}))
+     :all-players {}
+     :teams {}}))
 
 (defn store-state! []
   (set-clj-to-localstorage! "project1" @state))
@@ -131,29 +133,11 @@
            :class "col-wrapper-inner"}
       (map PlayerBox players)]])
 
-(def teams-cols
-  [{:id "list-team1"}
-   {:id "list-team2"}
-   {:id "list-team3"}
-   {:id "list-team4"}])
-
 (defn Columns [all-players]
   [:div#columnsContainer.columns-wrapper
    (SingleColumn {:team-id "allPlayersList"
                   :title "All Players"
-                  :players all-players})
-   (SingleColumn {:team-id "list-team1"
-                  :title "Team 1"
-                  :players []})
-   (SingleColumn {:team-id "list-team2"
-                  :title "Team 2"
-                  :players []})
-   (SingleColumn {:team-id "list-team3"
-                  :title "Team 3"
-                  :players []})
-   (SingleColumn {:team-id "list-team4"
-                  :title "Team 4"
-                  :players []})])
+                  :players all-players})])
 
 (defn LinkBoxes []
   [:div {:style "display: flex; flex-direction: row;"}
@@ -164,15 +148,14 @@
       [:h2 "Unlink Box"]
       [:div#unlinkBox]]])
 
-;; TODO: do we need a group-id here?
-(hiccups/defhtml LinkedPlayersBox [players]
+(defn LinkedPlayersBox [players]
   [:div.linked-players-box
    (map PlayerBox players)])
 
 (defn DragAndDropColumns [all-players]
   [:div
    [:button#addColumnBtn "Add Column"]
-   ; [:button#removeColumnBtn "Remove Column"]
+   [:button#removeColumnBtn "Remove Column"]
    (Columns all-players)
    (LinkBoxes)])
 
@@ -216,7 +199,7 @@
   [_js-evt]
   (let [players (get-all-players-in-dom-element "linkBox")
         sorted-players (sort compare-players players)]
-    (set-inner-html! "linkBox" (LinkedPlayersBox sorted-players))))
+    (set-inner-html! "linkBox" (html (LinkedPlayersBox sorted-players)))))
 
 (defn get-all-player-ids-in-dom-element
   "returns a collection of all player ids within a DOM element"
@@ -330,16 +313,7 @@
   ;; Drag and Drop Columns
   (init-sortable-list! "allPlayersList" {})
   (init-sortable-list! "linkBox" {:on-add on-add-link-box})
-  (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box})
-
-  ;; FIXME: need to add sortable on teams columns
-  (doseq [itm teams-cols]
-    (init-sortable-list!
-      (:id itm)
-      {:on-add (fn [_js-evt]
-                 (update-team-summary! (:id itm)))
-       :on-remove (fn [_js-evt]
-                    (update-team-summary! (:id itm)))})))
+  (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box}))
 
 (defn init-single-column-sortable! [team-id]
   (init-sortable-list!
@@ -350,15 +324,35 @@
                   (update-team-summary! team-id))}))
 
 (defn click-add-column-btn [_js-evt]
-  (let [new-team-id (random-team-id)]
+  (let [num-teams (-> @state :teams count)
+        new-team-id (random-team-id)
+        new-team {:team-id new-team-id
+                  :players []
+                  :title (str "Team " (inc num-teams))}]
     ;; add the Column html
     (dom-util/append-html! "columnsContainer"
-      (html (SingleColumn {:team-id new-team-id
-                           :players []
-                           :title "FIXME: new title"})))
+                           (html (SingleColumn new-team)))
     ;; init SortableJS on the new Column
-    (init-single-column-sortable! new-team-id)))
-    ;; FIXME: store new team id in state
+    (init-single-column-sortable! new-team-id)
+    ;; store new team in state
+    (swap! state assoc-in [:teams new-team-id] new-team)))
+
+; (defn remove-column! [team-id]
+;   (let [players (get-all-players-in-dom-element team-id)]
+;     (timbre/info "hhhhhhh:" players)))
+;   ;; move players to "all players"
+;   ;; remove column HTML
+
+; (defn click-remove-column-btn [_js-evt]
+;   (let [new-team-id (random-team-id)]
+;     ;; add the Column html
+;     (dom-util/append-html! "columnsContainer"
+;       (html (SingleColumn {:team-id new-team-id
+;                            :players []
+;                            :title "FIXME: new title"})))
+;     ;; init SortableJS on the new Column
+;     (init-single-column-sortable! new-team-id)))
+;     ;; FIXME: store new team id in state
 
 (defn on-click-next-step-button [_js-evt]
   ;; get players from CSV input
@@ -371,6 +365,7 @@
     (set-inner-html! "dragAndDropColumnsContainer" (html (DragAndDropColumns players-with-ids)))
     (init-sortablejs!))
   (add-event! "addColumnBtn" "click" click-add-column-btn)
+  ; (add-event! "removeColumnBtn" "click" click-remove-column-btn)
 
   ;; toggle display
   (dom-util/hide-el! "inputPlayersContainer")
