@@ -63,6 +63,14 @@
       (gobj/get "style")
       (gobj/set prop value)))
 
+(defn show-el!
+  [el]
+  (set-style-prop! el "display" ""))
+
+(defn hide-el!
+  [el]
+  (set-style-prop! el "display" "none"))
+
 (defn set-inner-html!
   [el html]
   (-> (get-element el)
