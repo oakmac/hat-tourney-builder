@@ -3,6 +3,7 @@
     [clojure.string :as str]
     [goog.functions :as gfunctions]
     [goog.labs.format.csv :as csv]
+    [hat-tourney-builder.util.base58 :refer [random-base58]]
     [hat-tourney-builder.util.dom :as dom-util :refer [add-event! get-element query-select-all set-inner-html!]]
     [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
     [hiccups.runtime :as hiccups]
@@ -11,7 +12,10 @@
   (:require-macros
     [hiccups.core :as hiccups :refer [html]]))
 
-(declare get-all-players-in-dom-element initial-render!)
+(declare get-all-players-in-dom-element initial-render! random-player-id)
+
+(defn random-player-id []
+  (str "plyr-" (random-base58 10)))
 
 (defn refresh!
   "this function gets triggered after every shadow-cljs reload"
@@ -29,37 +33,36 @@
       (not= a-sex b-sex) (compare a-sex b-sex)
       :else (compare a-name b-name))))
 
-(def all-players
-  [{:id "1232341232"
+(def all-players-example
+  [{:id (random-player-id)
     :name "Chris Oakman"
     :sex "male"
-    :strength 7
-    :baggage-id "888882222"}
-   {:id "823723232"
+    :strength 7}
+   {:id (random-player-id)
     :name "Lauren Oakman"
     :sex "female"
-    :strength 8
-    :baggage-id "888882222"}
-   {:id "2328d99f83"
+    :strength 8}
+   {:id (random-player-id)
     :name "Gillian Maleski"
     :sex "female"
     :strength 8}
-   {:id "234383jd"
+   {:id (random-player-id)
     :name "David Waters"
     :sex "male"
     :strength 9}
-   {:id "djeue8d822"
+   {:id (random-player-id)
     :name "Oliver Geser"
     :sex "male"
     :strength 8}
-   {:id "999222822"
+   {:id (random-player-id)
     :name "Sara Wise"
     :sex "female"
     :strength 8}])
 
 (def state
   (atom
-    {:all-players (zipmap (map :id all-players) all-players)}))
+    {; :all-players (zipmap (map :id all-players-example) all-players-example)
+     :all-players {}}))
 
 (defn store-state! []
   (set-clj-to-localstorage! "project1" @state))
@@ -131,7 +134,7 @@
    {:id "list-team3"}
    {:id "list-team4"}])
 
-(defn Columns []
+(defn Columns [all-players]
   [:div.columns-wrapper
    (Column {:list-id "allPlayersList"
             :title "All Players"
@@ -163,11 +166,11 @@
   [:div.linked-players-box
    (map PlayerBox players)])
 
-(defn DragAndDropColumns []
+(defn DragAndDropColumns [all-players]
   [:div
    [:h1 "Hat Tourney Builder"]
    [:hr]
-   (Columns)
+   (Columns all-players)
    (LinkBoxes)])
 
 (def example-csv-input-str
@@ -200,8 +203,7 @@
    [:h1 "Hat Tourney Builder"]
    [:hr]
    [:div#inputPlayersContainer (InputPlayersCSV)]
-   [:div#dragAndDropColumnsContainer {:style "display: none;"}
-    (DragAndDropColumns)]])
+   [:div#dragAndDropColumnsContainer {:style "display: none;"}]])
 
 (defn initial-render! []
   (set-inner-html! "appContainer" (html (HatTourneyBuilder))))
@@ -277,29 +279,34 @@
     [:tbody
       (map PlayerRow players)]])
 
+(defn valid-player-row? [row]
+  (and (vector? row)
+       (= 3 (count row))
+       (every? string? row)))
+
 (defn get-players-from-csv-input
   ([]
    (-> (get-element "inputPlayersTextarea")
        (oget "value")
        get-players-from-csv-input))
   ([csv-txt]
-   (let [;; TODO: wrap in try/catch
+   (let [;; TODO: wrap this parse in try/catch
          js-parsed-csv (csv/parse csv-txt)
          clj-parsed (js->clj js-parsed-csv)
-         ;; TODO: remove bad rows?
-         vec-of-maps (map
+         clj-parsed2 (filter valid-player-row? clj-parsed)
+         players-vec (map
                        (fn [row]
                          {:name (str/trim (nth row 0 nil))
                           :sex (parse-gender-str (nth row 1 nil))
                           :strength (parse-strength-num (nth row 2 nil))})
-                       clj-parsed)]
-    vec-of-maps)))
+                       clj-parsed2)]
+     players-vec)))
 
 (defn on-change-input-players-csv
   [js-evt]
   (let [txt (oget js-evt "currentTarget.value")
         players (get-players-from-csv-input txt)]
-    (swap! state assoc :players players)
+    (swap! state assoc :all-players players)
 
     (set-inner-html! "parsedPlayersTable" (html (PlayersTable players)))))
 
@@ -312,8 +319,36 @@
             "onAdd" (when on-add on-add)
             "onRemove" (when on-remove on-remove))))
 
+(defn add-random-id-to-player
+  [p]
+  (assoc p :id (random-player-id)))
+
+(defn init-sortablejs! []
+  ;; Drag and Drop Columns
+  (init-sortable-list! "allPlayersList" {})
+  (init-sortable-list! "linkBox" {:on-add on-add-link-box})
+  (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box})
+
+  ;; FIXME: need to add sortable on teams columns
+  (doseq [itm teams-cols]
+    (init-sortable-list!
+      (:id itm)
+      {:on-add (fn [_js-evt]
+                 (update-team-summary! (:id itm)))
+       :on-remove (fn [_js-evt]
+                    (update-team-summary! (:id itm)))})))
+
 (defn on-click-next-step-button [_js-evt]
-  ;; TODO: get players data
+  ;; get players from CSV input
+  (let [players-vec (get-players-from-csv-input)
+        players-with-ids (map add-random-id-to-player players-vec)
+        players-map (zipmap (map :id players-with-ids) players-with-ids)]
+
+    (swap! state assoc :all-players players-map)
+
+    (set-inner-html! "dragAndDropColumnsContainer" (html (DragAndDropColumns players-with-ids)))
+    (init-sortablejs!))
+
   ;; toggle display
   (dom-util/hide-el! "inputPlayersContainer")
   (dom-util/show-el! "dragAndDropColumnsContainer"))
@@ -323,21 +358,7 @@
     (fn []
       ;; player CSV input
       (add-event! "nextStepBtn" "click" on-click-next-step-button)
-      (add-event! "inputPlayersTextarea" "keyup" on-change-input-players-csv)
-
-      ;; Drag and Drop Columns
-      (init-sortable-list! "allPlayersList" {})
-      (init-sortable-list! "linkBox" {:on-add on-add-link-box})
-      (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box})
-
-      ;; FIXME: need to add sortable on teams columns
-      (doseq [itm teams-cols]
-        (init-sortable-list!
-          (:id itm)
-          {:on-add (fn [_js-evt]
-                     (update-team-summary! (:id itm)))
-           :on-remove (fn [_js-evt]
-                        (update-team-summary! (:id itm)))})))))
+      (add-event! "inputPlayersTextarea" "keyup" on-change-input-players-csv))))
 
 ;; -----------------------------------------------------------------------------
 ;; Init
