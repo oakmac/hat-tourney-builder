@@ -14,6 +14,9 @@
 
 (declare get-all-players-in-dom-element initial-render! random-player-id)
 
+(defn random-team-id []
+  (str "team-" (random-base58 10)))
+
 (defn random-player-id []
   (str "plyr-" (random-base58 10)))
 
@@ -120,13 +123,13 @@
      [:td "Avg Strength"]
      [:td (format-strength-number avg-strength)]]]])
 
-(defn Column [{:keys [title list-id list-items]}]
+(defn SingleColumn [{:keys [players team-id title]}]
   [:div.col-wrapper-outer
     [:h2 title]
-    [:div {:id (str list-id "-summary")}]
-    [:div {:id list-id
+    [:div {:id (str team-id "-summary")}]
+    [:div {:id team-id
            :class "col-wrapper-inner"}
-      (map PlayerBox list-items)]])
+      (map PlayerBox players)]])
 
 (def teams-cols
   [{:id "list-team1"}
@@ -135,22 +138,22 @@
    {:id "list-team4"}])
 
 (defn Columns [all-players]
-  [:div.columns-wrapper
-   (Column {:list-id "allPlayersList"
-            :title "All Players"
-            :list-items all-players})
-   (Column {:list-id "list-team1"
-            :title "Team 1"
-            :list-items []})
-   (Column {:list-id "list-team2"
-            :title "Team 2"
-            :list-items []})
-   (Column {:list-id "list-team3"
-            :title "Team 3"
-            :list-items []})
-   (Column {:list-id "list-team4"
-            :title "Team 4"
-            :list-items []})])
+  [:div#columnsContainer.columns-wrapper
+   (SingleColumn {:team-id "allPlayersList"
+                  :title "All Players"
+                  :players all-players})
+   (SingleColumn {:team-id "list-team1"
+                  :title "Team 1"
+                  :players []})
+   (SingleColumn {:team-id "list-team2"
+                  :title "Team 2"
+                  :players []})
+   (SingleColumn {:team-id "list-team3"
+                  :title "Team 3"
+                  :players []})
+   (SingleColumn {:team-id "list-team4"
+                  :title "Team 4"
+                  :players []})])
 
 (defn LinkBoxes []
   [:div {:style "display: flex; flex-direction: row;"}
@@ -168,8 +171,8 @@
 
 (defn DragAndDropColumns [all-players]
   [:div
-   [:h1 "Hat Tourney Builder"]
-   [:hr]
+   [:button#addColumnBtn "Add Column"]
+   ; [:button#removeColumnBtn "Remove Column"]
    (Columns all-players)
    (LinkBoxes)])
 
@@ -338,6 +341,25 @@
        :on-remove (fn [_js-evt]
                     (update-team-summary! (:id itm)))})))
 
+(defn init-single-column-sortable! [team-id]
+  (init-sortable-list!
+    team-id
+    {:on-add (fn [_js-evt]
+               (update-team-summary! team-id))
+     :on-remove (fn [_js-evt]
+                  (update-team-summary! team-id))}))
+
+(defn click-add-column-btn [_js-evt]
+  (let [new-team-id (random-team-id)]
+    ;; add the Column html
+    (dom-util/append-html! "columnsContainer"
+      (html (SingleColumn {:team-id new-team-id
+                           :players []
+                           :title "FIXME: new title"})))
+    ;; init SortableJS on the new Column
+    (init-single-column-sortable! new-team-id)))
+    ;; FIXME: store new team id in state
+
 (defn on-click-next-step-button [_js-evt]
   ;; get players from CSV input
   (let [players-vec (get-players-from-csv-input)
@@ -348,6 +370,7 @@
 
     (set-inner-html! "dragAndDropColumnsContainer" (html (DragAndDropColumns players-with-ids)))
     (init-sortablejs!))
+  (add-event! "addColumnBtn" "click" click-add-column-btn)
 
   ;; toggle display
   (dom-util/hide-el! "inputPlayersContainer")
