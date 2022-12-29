@@ -1,5 +1,6 @@
 (ns hat-tourney-builder.core
   (:require
+    [clojure.set :as set]
     [clojure.string :as str]
     [goog.functions :as gfunctions]
     [goog.labs.format.csv :as csv]
@@ -12,19 +13,32 @@
   (:require-macros
     [hiccups.core :as hiccups :refer [html]]))
 
-(declare get-all-players-in-dom-element initial-render! random-player-id)
+(declare get-players-in-dom-element random-player-id)
+
+;; -----------------------------------------------------------------------------
+;; Predicates
+
+(defn looks-like-a-team-id?
+  [id]
+  (and (string? id)
+       (str/starts-with? id "team-")))
+
+(defn male? [player]
+  (= (:sex player) "male"))
+
+(defn female? [player]
+  (= (:sex player) "female"))
+
+
+
+
+
 
 (defn random-team-id []
   (str "team-" (random-base58 10)))
 
 (defn random-player-id []
   (str "plyr-" (random-base58 10)))
-
-(defn refresh!
-  "this function gets triggered after every shadow-cljs reload"
-  []
-  ; (initial-render!))
-  nil)
 
 (defn compare-players
   "sort players: female first, then sort by name"
@@ -63,17 +77,31 @@
     :sex "female"
     :strength 8}])
 
-(def state
+(defn on-change-state-store-ls
+  [_ _ _old-state new-state]
+  (set-clj-to-localstorage! "project1" new-state))
+
+(defn update-active-tab
+  "show / hide pages based on active-tab"
+  [_ _ old-state new-state]
+  (let [; old-tab (:active-tab old-state)
+        new-tab (:active-tab new-state)]
+    (case new-tab
+      "PLAYERS_INPUT_TAB"
+      (do (dom-util/hide-el! "dragAndDropColumnsContainer")
+          (dom-util/show-el! "inputPlayersContainer"))
+
+      "TEAM_COLUMNS_TAB"
+      (do (dom-util/hide-el! "inputPlayersContainer")
+          (dom-util/show-el! "dragAndDropColumnsContainer"))
+
+      (timbre/warn "Unrecogznied :active-tab value:" new-tab))))
+
+(defonce *state
   (atom
-    {; :all-players (zipmap (map :id all-players-example) all-players-example)
-     :all-players {}
+    {:active-tab "PLAYERS_INPUT_TAB"
+     :players {}
      :teams {}}))
-
-(defn store-state! []
-  (set-clj-to-localstorage! "project1" @state))
-
-; (defn read-state
-;   (ls-util/set-localstorage! "project1" (prn-str @state)))
 
 (defn PlayerBox
   [{:keys [id name sex rank]}]
@@ -85,12 +113,6 @@
                        ;; TODO: warn here
                        nil))}
     name])
-
-(defn male? [player]
-  (= (:sex player) "male"))
-
-(defn female? [player]
-  (= (:sex player) "female"))
 
 (defn players->summary
   [players]
@@ -130,7 +152,7 @@
     [:h2 title]
     [:div {:id (str team-id "-summary")}]
     [:div {:id team-id
-           :class "col-wrapper-inner"}
+           :class "team-column col-wrapper-inner"}
       (map PlayerBox players)]])
 
 (defn Columns [all-players]
@@ -154,8 +176,8 @@
 
 (defn DragAndDropColumns [all-players]
   [:div
-   [:button#addColumnBtn "Add Column"]
-   [:button#removeColumnBtn "Remove Column"]
+   [:button#addTeamBtn "Add Team"]
+   ; [:button#removeColumnBtn "Remove Column"]
    (Columns all-players)
    (LinkBoxes)])
 
@@ -188,8 +210,13 @@
   [:div
    [:h1 "Hat Tourney Builder"]
    [:hr]
-   [:div#inputPlayersContainer (InputPlayersCSV)]
-   [:div#dragAndDropColumnsContainer {:style "display: none;"}]])
+   [:button#playersInputBtn "Players Input"]
+   [:button#teamsSortingBtn "Teams Sorting"]
+   [:br] [:br]
+   [:div#inputPlayersContainer {:style "display: none;"}
+    (InputPlayersCSV)]
+   [:div#dragAndDropColumnsContainer {:style "display: none;"}
+    (DragAndDropColumns [])]])
 
 (defn initial-render! []
   (set-inner-html! "appContainer" (html (HatTourneyBuilder))))
@@ -197,11 +224,11 @@
 (defn on-add-link-box
   "fires when a player has been added to the Link Box"
   [_js-evt]
-  (let [players (get-all-players-in-dom-element "linkBox")
+  (let [players (get-players-in-dom-element "linkBox")
         sorted-players (sort compare-players players)]
     (set-inner-html! "linkBox" (html (LinkedPlayersBox sorted-players)))))
 
-(defn get-all-player-ids-in-dom-element
+(defn get-player-ids-in-dom-element
   "returns a collection of all player ids within a DOM element"
   [el-id]
   (let [selector (str "#" el-id " .player-box")
@@ -211,26 +238,26 @@
                     (swap! ids conj (oget el "id"))))
     @ids))
 
-(defn get-all-players-in-dom-element
+(defn get-players-in-dom-element
   "returns a collection of all players within a DOM element"
   [el-id]
-  (let [player-ids (get-all-player-ids-in-dom-element el-id)
-        all-players-map (:all-players @state)
+  (let [player-ids (get-player-ids-in-dom-element el-id)
+        players-map (:players @*state)
         players (map
                   (fn [player-id]
-                    (if-let [p (get all-players-map player-id)]
+                    (if-let [p (get players-map player-id)]
                       p
                       (timbre/warn "Unable to find player with id:" player-id)))
                   player-ids)]
     (remove nil? players)))
 
 (defn on-add-unlink-box [_js-evt]
-  (let [players (get-all-players-in-dom-element "unlinkBox")]
+  (let [players (get-players-in-dom-element "unlinkBox")]
     (timbre/info "Unlinking" (count players) "players:" players)
     (set-inner-html! "unlinkBox" (html (map PlayerBox players)))))
 
 (defn update-team-summary! [team-id]
-  (let [players (get-all-players-in-dom-element team-id)
+  (let [players (get-players-in-dom-element team-id)
         summary-id (str team-id "-summary")
         summary (players->summary players)]
     (set-inner-html! summary-id (html (TeamSummary summary)))))
@@ -292,7 +319,7 @@
   [js-evt]
   (let [txt (oget js-evt "currentTarget.value")
         players (get-players-from-csv-input txt)]
-    (swap! state assoc :all-players players)
+    (swap! *state assoc :players players)
 
     (set-inner-html! "parsedPlayersTable" (html (PlayersTable players)))))
 
@@ -309,50 +336,130 @@
   [p]
   (assoc p :id (random-player-id)))
 
-(defn init-sortablejs! []
-  ;; Drag and Drop Columns
-  (init-sortable-list! "allPlayersList" {})
-  (init-sortable-list! "linkBox" {:on-add on-add-link-box})
-  (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box}))
 
-(defn init-single-column-sortable! [team-id]
+
+
+
+(defn add-to-all-players-list
+  [js-evt]
+  (let [player-id (oget js-evt "item.id")
+        current-state @*state
+        player (get-in current-state [:players player-id])]
+    (assert player (str "Player with id not found:" player-id))
+
+    (swap! *state assoc-in [:players player-id :team-id] nil)
+
+    (timbre/info "Added player" (:name player) "(" player-id ")"
+                 "to un-teamed")))
+
+
+
+
+
+
+
+(defn on-add-player-to-team
+  "this event fires when a player is moved to a team column"
+  [js-evt team-id]
+  (let [player-id (oget js-evt "item.id")
+        current-state @*state
+        player (get-in current-state [:players player-id])
+        team (get-in current-state [:teams team-id])]
+    (assert player (str "Player with id not found:" player-id))
+    (assert team (str "Team with id not found:" team-id))
+
+    (swap! *state assoc-in [:players player-id :team-id] team-id)
+
+    (timbre/info "Added player" (:name player) "(" player-id ")"
+                 "to team" (:title team) "(" team-id ")")))
+
+(defn on-remove-player-to-team
+  "this event fires when a player is removed from a team column"
+  [js-evt])
+  ; (js/console.log "remove player:" js-evt))
+  ;; TODO: maybe delete this
+
+
+
+
+(defn init-single-team-sortable! [team-id]
   (init-sortable-list!
     team-id
-    {:on-add (fn [_js-evt]
+    {:on-add (fn [js-evt]
+               (on-add-player-to-team js-evt team-id)
                (update-team-summary! team-id))
-     :on-remove (fn [_js-evt]
+     :on-remove (fn [js-evt]
+                  (on-remove-player-to-team js-evt)
                   (update-team-summary! team-id))}))
 
-(defn click-add-column-btn [_js-evt]
-  (let [num-teams (-> @state :teams count)
+(defn get-team-ids-from-dom
+  "returns a set of the team-ids currently in the DOM"
+  []
+  (let [els (dom-util/query-select-all ".team-column")
+        ids (atom #{})]
+    (.forEach els
+      (fn [el]
+        (let [id (oget el "id")]
+          (when (looks-like-a-team-id? id)
+            (swap! ids conj id)))))
+    @ids))
+
+(defn update-teams
+  [new-state]
+  (let [current-teams (:teams new-state)
+        current-team-ids (set (keys current-teams))
+        team-ids-in-dom (get-team-ids-from-dom)
+        team-ids-need-to-be-added (set/difference current-team-ids team-ids-in-dom)
+        teams-that-need-to-be-added (select-keys current-teams team-ids-need-to-be-added)]
+    ;; add teams to the DOM
+    (doseq [team (vals teams-that-need-to-be-added)]
+      ;; add the Column html
+      (dom-util/append-html! "columnsContainer"
+                             (html (SingleColumn team)))
+      ;; init SortableJS on the new Column
+      (init-single-team-sortable! (:team-id team)))))
+
+    ;; FIXME: remove teams from the DOM
+
+(defn update-players
+  [new-state]
+  (let [current-players (:players new-state)
+        players-in-all-players-column (get-players-in-dom-element "allPlayersList")
+        player-ids-in-all-players-column (set (map :id players-in-all-players-column))
+        players-not-on-a-team (filter #(not (:team-id %)) (vals current-players))
+        teams (vals (:teams new-state))]
+    ;; fill the "All Players" column
+    (doseq [player players-not-on-a-team]
+      (when-not (contains? player-ids-in-all-players-column (:id player))
+        (dom-util/append-html! "allPlayersList" (html (PlayerBox player)))))
+
+    ;; FIXME: remove players from "All Players" column
+
+    ;; update players in each team column
+    ;; TODO: this is inefficient, could be more performant
+    (doseq [team teams]
+      (let [team-id (:team-id team)
+            players-on-team-in-dom (get-players-in-dom-element (:team-id team))
+            player-ids-in-dom (set (map :id players-on-team-in-dom))
+            players-on-team-in-memory (filter #(= team-id (:team-id %))
+                                              (vals current-players))]
+        (doseq [player players-on-team-in-memory]
+          (when-not (contains? player-ids-in-dom (:id player))
+            (dom-util/append-html! team-id (html (PlayerBox player)))))))))
+
+(defn update-teams-and-players
+  [_ _ old-state new-state]
+  (update-teams new-state)
+  (update-players new-state))
+
+(defn click-add-team-btn [_js-evt]
+  (let [num-teams (-> @*state :teams count)
         new-team-id (random-team-id)
         new-team {:team-id new-team-id
                   :players []
                   :title (str "Team " (inc num-teams))}]
-    ;; add the Column html
-    (dom-util/append-html! "columnsContainer"
-                           (html (SingleColumn new-team)))
-    ;; init SortableJS on the new Column
-    (init-single-column-sortable! new-team-id)
     ;; store new team in state
-    (swap! state assoc-in [:teams new-team-id] new-team)))
-
-; (defn remove-column! [team-id]
-;   (let [players (get-all-players-in-dom-element team-id)]
-;     (timbre/info "hhhhhhh:" players)))
-;   ;; move players to "all players"
-;   ;; remove column HTML
-
-; (defn click-remove-column-btn [_js-evt]
-;   (let [new-team-id (random-team-id)]
-;     ;; add the Column html
-;     (dom-util/append-html! "columnsContainer"
-;       (html (SingleColumn {:team-id new-team-id
-;                            :players []
-;                            :title "FIXME: new title"})))
-;     ;; init SortableJS on the new Column
-;     (init-single-column-sortable! new-team-id)))
-;     ;; FIXME: store new team id in state
+    (swap! *state assoc-in [:teams new-team-id] new-team)))
 
 (defn on-click-next-step-button [_js-evt]
   ;; get players from CSV input
@@ -360,40 +467,60 @@
         players-with-ids (map add-random-id-to-player players-vec)
         players-map (zipmap (map :id players-with-ids) players-with-ids)]
 
-    (swap! state assoc :all-players players-map)
+    (swap! *state assoc :players players-map))
+  (swap! *state assoc :active-tab "TEAM_COLUMNS_TAB"))
 
-    (set-inner-html! "dragAndDropColumnsContainer" (html (DragAndDropColumns players-with-ids)))
-    (init-sortablejs!))
-  (add-event! "addColumnBtn" "click" click-add-column-btn)
-  ; (add-event! "removeColumnBtn" "click" click-remove-column-btn)
+(defn click-players-input-btn [_js-evt]
+  (swap! *state assoc :active-tab "PLAYERS_INPUT_TAB"))
 
-  ;; toggle display
-  (dom-util/hide-el! "inputPlayersContainer")
-  (dom-util/show-el! "dragAndDropColumnsContainer"))
+(defn click-teams-sorting-btn [_js-evt]
+  (swap! *state assoc :active-tab "TEAM_COLUMNS_TAB"))
 
-(def add-events!
+(def add-dom-events!
   (gfunctions/once
     (fn []
       ;; player CSV input
       (add-event! "nextStepBtn" "click" on-click-next-step-button)
-      (add-event! "inputPlayersTextarea" "keyup" on-change-input-players-csv))))
+      (add-event! "inputPlayersTextarea" "keyup" on-change-input-players-csv)
+
+      (add-event! "playersInputBtn" "click" click-players-input-btn)
+      (add-event! "teamsSortingBtn" "click" click-teams-sorting-btn)
+
+      (add-event! "addTeamBtn" "click" click-add-team-btn))))
+
+(def init-sortablejs!
+  (gfunctions/once
+    (fn []
+      (init-sortable-list! "allPlayersList" {:on-add add-to-all-players-list})
+      (init-sortable-list! "linkBox" {:on-add on-add-link-box})
+      (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box}))))
 
 ;; -----------------------------------------------------------------------------
 ;; Init
+
+(defn refresh!
+  "this function gets triggered after every shadow-cljs reload"
+  []
+  (swap! *state identity))
 
 ;; NOTE: this is a "run once" function
 (def init!
   (gfunctions/once
     (fn []
       (timbre/info "Initialized Tourney Hat Builder 😎")
-      (initial-render!)
-      (add-events!))))
+      (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
+        (timbre/info "Loaded existing state from localStorage")
+        (reset! *state state-from-localstorage))
 
-      ; (set-localstorage! "foo" "bar")
-      ; (store-state!)
+      (add-watch *state :save-to-ls on-change-state-store-ls)
+      (add-watch *state :update-active-tab update-active-tab)
+      (add-watch *state :update-teams-and-players update-teams-and-players)
 
-      ; (let [xxx (read-clj-from-localstorage "project1")]
-      ;   (timbre/info xxx)
-      ;   (timbre/info (map? xxx))))))
+      (set-inner-html! "appContainer" (html (HatTourneyBuilder)))
+      (add-dom-events!)
+      (init-sortablejs!)
+
+      ;; trigger an initial render from state
+      (swap! *state identity))))
 
 (.addEventListener js/window "load" init!)
