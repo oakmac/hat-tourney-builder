@@ -208,14 +208,29 @@
      (for [team sorted-teams]
        ^{:key (:team-id team)} [SingleColumn (assoc team :team-column? true)])]))
 
+(declare on-add-link-box
+         on-add-unlink-box)
+
 (defn LinkBoxes []
-  [:div {:style {:display "flex", :flex-direction "row"}}
-    [:div {:style {:margin-right "1em"}}
-      [:h2 "Link Box"]
-      [:div#linkBox]]
-    [:div
-      [:h2 "Unlink Box"]
-      [:div#unlinkBox]]])
+  (reagent/create-class
+    {:display-name "LinkBoxes"
+
+     :component-did-mount
+     (fn [_this]
+       (init-sortable-list! "linkBox"
+                            {:on-add on-add-link-box})
+       (init-sortable-list! "unlinkBox"
+                            {:on-add on-add-unlink-box}))
+
+     :reagent-render
+     (fn []
+       [:div {:style {:display "flex", :flex-direction "row"}}
+         [:div {:style {:margin-right "1em"}}
+           [:h2 "Link Box"]
+           [:div#linkBox]]
+         [:div
+           [:h2 "Unlink Box"]
+           [:div#unlinkBox]]])}))
 
 (defn LinkedPlayersBox [players]
   (let [link-ids (map :link-id players)
@@ -244,8 +259,6 @@
        "Stephen,m,5\n"
        "Christi,f,7\n"
        "Jake,m,6\n"))
-
-
 
 (defn HatTourneyBuilder []
   [:div
@@ -281,7 +294,9 @@
         els (query-select-all selector)
         ids (atom [])]
     (.forEach els (fn [el]
-                    (swap! ids conj (oget el "id"))))
+                    (let [el-id (oget el "id")]
+                      (when (looks-like-a-player-id? el-id)
+                        (swap! ids conj el-id)))))
     @ids))
 
 (defn get-players-in-dom-element
@@ -311,34 +326,48 @@
         players-by-link-group (group-by :link-id linked-players)]
     (select-keys players-by-link-group link-ids)))
 
-(defn on-add-link-box
-  "fires when a player has been added to the Link Box"
-  [_js-evt]
-  (let [players (get-players-in-dom-element "linkBox")
-        link-ids (map :link-id players)
-        player-ids (map :id players)
+; (defn on-add-link-box
+;   "fires when a player has been added to the Link Box"
+;   [_js-evt]
+;   (let [players (get-players-in-dom-element "linkBox")
+;         link-ids (map :link-id players)
+;         player-ids (map :id players)
 
-        link-id (or ;; find an existing link-id
-                    (->> players
-                      (map :link-id)
-                      (filter looks-like-a-link-id?)
-                      first)
-                    ;; create one
-                    (random-link-id))
-        linked-players (map
-                         (fn [p]
-                           (assoc p :link-id link-id
-                                    :inside-link-box? true
-                                    :inside-unlink-box? false
-                                    :team-id nil))
-                         players)
-        linked-players-map (zipmap (map :id linked-players) linked-players)]
-    (swap! *state update :players merge linked-players-map)
-    (timbre/info "Players in LinkBox:"
-                 (map
-                   (fn [p]
-                     (str (:name p) " (" (:id p) ")"))
-                   linked-players))))
+;         link-id (or ;; find an existing link-id
+;                     (->> players
+;                       (map :link-id)
+;                       (filter looks-like-a-link-id?)
+;                       first)
+;                     ;; create one
+;                     (random-link-id))
+;         linked-players (map
+;                          (fn [p]
+;                            (assoc p :link-id link-id
+;                                     :inside-link-box? true
+;                                     :inside-unlink-box? false
+;                                     :team-id nil))
+;                          players)
+;         linked-players-map (zipmap (map :id linked-players) linked-players)]
+;     (swap! *state update :players merge linked-players-map)
+;     (timbre/info "Players in LinkBox:"
+;                  (map
+;                    (fn [p]
+;                      (str (:name p) " (" (:id p) ")"))
+;                    linked-players))))
+
+(defn on-add-link-box
+  "fires when an element has been added to the Link Box"
+  [_js-evt]
+  (let [player-ids (get-player-ids-in-dom-element "linkBox")]
+    ;     linkbox-el (get-element "linkBox")
+    ;     children-els (oget linkbox-el "children")
+    ;     children-ids (reduce
+    ;                    (fn [acc el]
+    ;                      (conj acc (oget el "id")))
+    ;                    []
+    ;                    children-els)]
+    ; (timbre/info children-ids)
+    (rf/dispatch [::link-players-together player-ids])))
 
 (defn on-add-unlink-box
   "fires when an element is added to the unlink box"
@@ -436,6 +465,13 @@
             "group" "shared"
             "onAdd" (when on-add on-add)
             "onRemove" (when on-remove on-remove))))
+            ; "removeCloneOnHide" false
+            ; "pull" "clone")))
+            ; "onClone" (fn [js-evt]
+            ;             (let [orig-el (oget js-evt "item")
+            ;                   clone-el (oget js-evt "clone")]
+            ;               (dom-util/set-style-prop! orig-el "background" "red")
+            ;               (dom-util/set-style-prop! clone-el "border" "5px solid green"))))))
 
 (defn add-random-id-to-player
   [p]
@@ -719,6 +755,51 @@
                     :order (inc (count current-teams))}]
       (update db :teams assoc new-team-id new-team))))
 
+(rf/reg-event-db
+  ::link-players-together
+  (fn [db [_ player-ids]]
+    (let [players (:players db)
+          ;; filter the player-ids to make sure they are valid
+          ;; and warn if otherwise
+          player-ids2 (reduce
+                        (fn [player-ids3 player-id]
+                          (if (get players player-id)
+                            (conj player-ids3 player-id)
+                            (do (timbre/warn "Unable to find player-id:" player-id)
+                                player-ids3)))
+                        []
+                        player-ids)]
+      ;; do not create a link-id if there is only one player in the box
+      (if (= 1 (count player-ids2))
+        (update-in db [:players (first player-ids2)] merge
+                   {:link-id nil
+                    :inside-link-box? false
+                    :inside-unlink-box? false
+                    :team-id nil})
+        ;; else create a link id (or make a new one) and link all of the players
+        ;; together
+        (let [linked-players (select-keys players player-ids2)
+              link-ids (filter looks-like-a-link-id? (map :link-id linked-players))
+              link-id (or (first link-ids) (random-link-id))
+              linked-players2 (map-indexed
+                                (fn [idx player-id]
+                                  (let [p (get players player-id)]
+                                    (assoc p :link-order (inc idx)
+                                             :link-id link-id
+                                             :inside-link-box? true
+                                             :inside-unlink-box? false
+                                             :team-id nil)))
+                                player-ids2)
+              linked-players2-map (zipmap player-ids2 linked-players2)]
+          (update db :players merge linked-players2-map))))))
+
+    ; (let [current-teams (:teams db)
+    ;       new-team-id (random-team-id)
+    ;       new-team {:team-id new-team-id
+    ;                 :title (str "Team " (inc (count current-teams)))
+    ;                 :order (inc (count current-teams))}]
+    ;   (update db :teams assoc new-team-id new-team))))
+
 ;; -----------------------------------------------------------------------------
 ;; Subscriptions
 
@@ -839,6 +920,9 @@
       (timbre/info "Initializing Hat Tourney Builder 😎")
       (if-not app-container-el
         (timbre/fatal "<div id=appContainer> element not found")
+;       (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
+;         (timbre/info "Loaded existing state from localStorage")
+;         (reset! *state state-from-localstorage))
         (let [] ;js-initial-event (oget+ js/window "ULTIMATE1.?initialEvent")]
               ; initial-event (js->clj js-initial-event :keywordize-keys true)]
           (rf/dispatch-sync [:init-db])
