@@ -18,6 +18,16 @@
 ;; -----------------------------------------------------------------------------
 ;; Predicates
 
+(defn looks-like-a-link-id?
+  [id]
+  (and (string? id)
+       (str/starts-with? id "link-")))
+
+(defn looks-like-a-player-id?
+  [id]
+  (and (string? id)
+       (str/starts-with? id "plyr-")))
+
 (defn looks-like-a-team-id?
   [id]
   (and (string? id)
@@ -32,13 +42,15 @@
 
 
 
+(defn random-link-id []
+  (str "link-" (random-base58 10)))
 
+(defn random-player-id []
+  (str "plyr-" (random-base58 10)))
 
 (defn random-team-id []
   (str "team-" (random-base58 10)))
 
-(defn random-player-id []
-  (str "plyr-" (random-base58 10)))
 
 (defn compare-players
   "sort players: female first, then sort by name"
@@ -171,8 +183,14 @@
       [:div#unlinkBox]]])
 
 (defn LinkedPlayersBox [players]
-  [:div.linked-players-box
-   (map PlayerBox players)])
+  (let [link-ids (map :link-id players)
+        link-ids-set (set link-ids)]
+    ;; sanity-check that all the linked players are in the same link-group
+    (assert (looks-like-a-link-id? (first link-ids)))
+    (assert (= 1 (count link-ids-set)))
+    [:div.linked-players-box
+      {:id (first link-ids-set)}
+      (map PlayerBox players)]))
 
 (defn DragAndDropColumns [all-players]
   [:div
@@ -221,12 +239,17 @@
 (defn initial-render! []
   (set-inner-html! "appContainer" (html (HatTourneyBuilder))))
 
-(defn on-add-link-box
-  "fires when a player has been added to the Link Box"
-  [_js-evt]
-  (let [players (get-players-in-dom-element "linkBox")
-        sorted-players (sort compare-players players)]
-    (set-inner-html! "linkBox" (html (LinkedPlayersBox sorted-players)))))
+(defn get-link-ids-in-dom-element
+  "returns a collection of all link ids within a DOM element"
+  [el-id]
+  (let [selector (str "#" el-id " .linked-players-box")
+        els (query-select-all selector)
+        ids (atom [])]
+    (.forEach els (fn [el]
+                    (let [el-id (oget el "id")]
+                      (when (looks-like-a-link-id? el-id)
+                        (swap! ids conj el-id)))))
+    @ids))
 
 (defn get-player-ids-in-dom-element
   "returns a collection of all player ids within a DOM element"
@@ -250,6 +273,49 @@
                       (timbre/warn "Unable to find player with id:" player-id)))
                   player-ids)]
     (remove nil? players)))
+
+(defn linked-player? [p]
+  (looks-like-a-link-id? (:link-id p)))
+
+;; TODO: improve performance here
+(defn get-link-groups-in-dom-element
+  "returns a map of <link-id> ==> [<player> <player> <player> ...]"
+  [el-id]
+  (let [link-ids (get-link-ids-in-dom-element el-id)
+        player-ids (get-player-ids-in-dom-element el-id)
+        players-map (:players @*state)
+        linked-players (filter linked-player? (vals players-map))
+        players-by-link-group (group-by :link-id linked-players)]
+    (select-keys players-by-link-group link-ids)))
+
+(defn on-add-link-box
+  "fires when a player has been added to the Link Box"
+  [_js-evt]
+  (let [players (get-players-in-dom-element "linkBox")
+        link-ids (map :link-id players)
+        player-ids (map :id players)
+
+        link-id (or ;; find an existing link-id
+                    (->> players
+                      (map :link-id)
+                      (filter looks-like-a-link-id?)
+                      first)
+                    ;; create one
+                    (random-link-id))
+        linked-players (map
+                         (fn [p]
+                           (assoc p :link-id link-id
+                                    :inside-link-box? true
+                                    :inside-unlink-box? false
+                                    :team-id nil))
+                         players)
+        linked-players-map (zipmap (map :id linked-players) linked-players)]
+    (swap! *state update :players merge linked-players-map)
+    (timbre/info "Players in LinkBox:"
+                 (map
+                   (fn [p]
+                     (str (:name p) " (" (:id p) ")"))
+                   linked-players))))
 
 (defn on-add-unlink-box [_js-evt]
   (let [players (get-players-in-dom-element "unlinkBox")]
@@ -336,42 +402,41 @@
   [p]
   (assoc p :id (random-player-id)))
 
-
-
-
-
 (defn add-to-all-players-list
   [js-evt]
   (let [player-id (oget js-evt "item.id")
         current-state @*state
         player (get-in current-state [:players player-id])]
     (assert player (str "Player with id not found:" player-id))
-
     (swap! *state assoc-in [:players player-id :team-id] nil)
+    (timbre/info (str "Added player " (:name player) " (" player-id ") "
+                      "to un-teamed list"))))
 
-    (timbre/info "Added player" (:name player) "(" player-id ")"
-                 "to un-teamed")))
-
-
-
-
-
-
-
-(defn on-add-player-to-team
-  "this event fires when a player is moved to a team column"
-  [js-evt team-id]
-  (let [player-id (oget js-evt "item.id")
-        current-state @*state
-        player (get-in current-state [:players player-id])
-        team (get-in current-state [:teams team-id])]
+(defn add-player-to-team!
+  [player team]
+  (let [player-id (:id player)
+        team-id (:team-id team)]
     (assert player (str "Player with id not found:" player-id))
     (assert team (str "Team with id not found:" team-id))
+    (swap! *state update-in [:players player-id] merge {:team-id team-id
+                                                        :inside-link-box? false
+                                                        :inside-unlink-box? false})
+    (timbre/info (str "Added player " (:name player) " (" player-id ") "
+                      "to team " (:title team) " (" team-id ")"))))
 
-    (swap! *state assoc-in [:players player-id :team-id] team-id)
-
-    (timbre/info "Added player" (:name player) "(" player-id ")"
-                 "to team" (:title team) "(" team-id ")")))
+(defn add-linked-players-to-team!
+  [linked-players team]
+  (let [team-id (:team-id team)
+        linked-players2 (map
+                          (fn [p]
+                            (assoc p :team-id team-id
+                                     :inside-link-box? false
+                                     :inside-unlink-box? false))
+                          linked-players)
+        linked-players-map (zipmap (map :id linked-players2) linked-players2)]
+    (swap! *state update :players merge linked-players-map)
+    (timbre/info "Added linked player group to team:" team)
+    (timbre/info "Linked players:" linked-players)))
 
 (defn on-remove-player-to-team
   "this event fires when a player is removed from a team column"
@@ -379,14 +444,34 @@
   ; (js/console.log "remove player:" js-evt))
   ;; TODO: maybe delete this
 
+(defn add-element-to-team-column
+  "this event fires when a DOM element is added to a Team column"
+  [js-evt team-id]
+  (let [el-id (oget js-evt "item.id")
+        current-state @*state
+        players (:players current-state)
+        player (get players el-id)
+        team (get-in current-state [:teams team-id])
+        linked-players (when (looks-like-a-link-id? el-id)
+                         (filter #(= el-id (:link-id %)) (vals players)))]
+    (assert team (str "Unrecognized team-id: " team-id))
+    (cond
+      player
+      (add-player-to-team! player team)
 
+      (and linked-players (not (empty? linked-players)))
+      (add-linked-players-to-team! linked-players team)
 
+      :else
+      (do (timbre/warn "Unrecognized element dropped onto Team column:")
+          (js/console.log (oget js-evt "item"))
+          nil))))
 
 (defn init-single-team-sortable! [team-id]
   (init-sortable-list!
     team-id
     {:on-add (fn [js-evt]
-               (on-add-player-to-team js-evt team-id)
+               (add-element-to-team-column js-evt team-id)
                (update-team-summary! team-id))
      :on-remove (fn [js-evt]
                   (on-remove-player-to-team js-evt)
@@ -421,13 +506,49 @@
 
     ;; FIXME: remove teams from the DOM
 
+(defn unsorted-player?
+  "Is this player unsorted? ie: not on a team, not in the link or unlink box"
+  [p]
+  (and (not (:team-id p))
+       (not (:inside-link-box? p))
+       (not (:inside-unlink-box? p))))
+
+(defn update-players-in-team
+  [players-on-team team]
+  (let [team-id (:team-id team)
+        players-in-dom (get-players-in-dom-element team-id)
+        link-groups-in-dom (get-link-groups-in-dom-element team-id)
+        unlinked-players-in-dom (filter #(not (:link-id %)) players-in-dom)
+        unlinked-players (filter #(not (:link-id %)) players-on-team)
+        unlinked-player-ids-in-dom (set (map :id unlinked-players-in-dom))
+        linked-players (filter linked-player? players-on-team)
+        link-groups (group-by :link-id linked-players)]
+
+    ; (timbre/info "updating team:" team)
+    ; (timbre/info "players:" players-on-team)
+    ; (timbre/info "link groups:" link-groups)
+    ; (timbre/info "-------------------------------------")
+
+    ;; build link boxes
+    (doseq [[link-id players] link-groups]
+      (when-not (get link-groups-in-dom link-id)
+        (dom-util/append-html! team-id (html (LinkedPlayersBox (sort compare-players players))))))
+
+    ;; build solo players
+    (doseq [p unlinked-players]
+      (when-not (contains? unlinked-player-ids-in-dom (:id p))
+        (dom-util/append-html! team-id (html (PlayerBox p)))))))
+
 (defn update-players
   [new-state]
   (let [current-players (:players new-state)
         players-in-all-players-column (get-players-in-dom-element "allPlayersList")
         player-ids-in-all-players-column (set (map :id players-in-all-players-column))
-        players-not-on-a-team (filter #(not (:team-id %)) (vals current-players))
-        teams (vals (:teams new-state))]
+        players-not-on-a-team (filter unsorted-player? (vals current-players))
+        teams (vals (:teams new-state))
+        players-in-link-box (filter :inside-link-box? (vals current-players))
+        sorted-linked-players (sort compare-players players-in-link-box)]
+    ;; FIXME: this is not working correctly with linked players
     ;; fill the "All Players" column
     (doseq [player players-not-on-a-team]
       (when-not (contains? player-ids-in-all-players-column (:id player))
@@ -435,20 +556,37 @@
 
     ;; FIXME: remove players from "All Players" column
 
-    ;; update players in each team column
-    ;; TODO: this is inefficient, could be more performant
+    ;; update players in LinkBox
+    (if (empty? players-in-link-box)
+      (set-inner-html! "linkBox" "")
+      (set-inner-html! "linkBox" (html (LinkedPlayersBox sorted-linked-players))))
+
+
     (doseq [team teams]
       (let [team-id (:team-id team)
             players-on-team-in-dom (get-players-in-dom-element (:team-id team))
             player-ids-in-dom (set (map :id players-on-team-in-dom))
             players-on-team-in-memory (filter #(= team-id (:team-id %))
                                               (vals current-players))]
-        (doseq [player players-on-team-in-memory]
-          (when-not (contains? player-ids-in-dom (:id player))
-            (dom-util/append-html! team-id (html (PlayerBox player)))))))))
+        (update-players-in-team players-on-team-in-memory team)))))
+
+
+
+    ;; update players in each team column
+    ;; TODO: this is inefficient, could be more performant
+    ; (doseq [team teams]
+    ;   (let [team-id (:team-id team)
+    ;         players-on-team-in-dom (get-players-in-dom-element (:team-id team))
+    ;         player-ids-in-dom (set (map :id players-on-team-in-dom))
+    ;         players-on-team-in-memory (filter #(= team-id (:team-id %))
+    ;                                           (vals current-players))]
+    ;     (doseq [player players-on-team-in-memory]
+    ;       (when-not (contains? player-ids-in-dom (:id player))
+    ;         (dom-util/append-html! team-id (html (PlayerBox player)))))))))
 
 (defn update-teams-and-players
   [_ _ old-state new-state]
+  ;; NOTE: order matters here. Team columns need to be updated before players
   (update-teams new-state)
   (update-players new-state))
 
