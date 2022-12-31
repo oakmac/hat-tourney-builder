@@ -3,7 +3,9 @@
  :dependencies
  [[binaryage/oops "0.7.2"]
   [com.taoensso/timbre "6.0.4"]
-  [macchiato/hiccups "0.4.1"]]
+  [macchiato/hiccups "0.4.1"]
+  [re-frame "1.3.0"]
+  [reagent "1.1.1"]]
 
  :builds
  {:hat-tourney-builder

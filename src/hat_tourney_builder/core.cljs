@@ -9,11 +9,15 @@
     [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
     [hiccups.runtime :as hiccups]
     [oops.core :refer [oget oset!]]
+    [re-frame.core :as rf]
+    [reagent.core :as reagent]
+    [reagent.dom :as reagent-dom]
     [taoensso.timbre :as timbre])
   (:require-macros
     [hiccups.core :as hiccups :refer [html]]))
 
-(declare get-players-in-dom-element random-player-id)
+(declare InputPlayersCSV get-players-in-dom-element random-player-id)
+(declare init-sortable-list!)
 
 ;; -----------------------------------------------------------------------------
 ;; Predicates
@@ -116,7 +120,8 @@
 
 (defn PlayerBox
   [{:keys [id name sex rank]}]
-  [:div {:id id
+  [:div {:key id
+         :id id
          :class (str "player-box "
                      (case sex
                        "male" "sex-male"
@@ -158,23 +163,54 @@
      [:td "Avg Strength"]
      [:td (format-strength-number avg-strength)]]]])
 
-(defn SingleColumn [{:keys [players team-id title]}]
-  [:div.col-wrapper-outer
-    [:h2 title]
-    [:div {:id (str team-id "-summary")}]
-    [:div {:id team-id
-           :class "team-column col-wrapper-inner"}
-      (map PlayerBox players)]])
+(defn on-add-element-to-all-players-column
+  [js-evt]
+  (let [el-id (oget js-evt "item.id")]
+    (timbre/info "added to all players:" el-id)))
 
-(defn Columns [all-players]
-  [:div#columnsContainer.columns-wrapper
-   (SingleColumn {:team-id "allPlayersList"
-                  :title "All Players"
-                  :players all-players})])
+(defn on-add-element-to-team-column
+  [js-evt]
+  (let [el-id (oget js-evt "item.id")]
+    (timbre/info "added to team column:" el-id)))
+
+(defn SingleColumn
+  [{:keys [all-players-column? players team-column? team-id title]}]
+  (reagent/create-class
+    {:display-name "SingleColumn"
+     :component-did-mount
+     (fn [_this]
+       (when all-players-column?
+         (init-sortable-list! team-id
+                              {:on-add on-add-element-to-all-players-column}))
+       (when team-column?
+         (init-sortable-list! team-id
+                              {:on-add on-add-element-to-team-column})))
+
+     :reagent-render
+     (fn [{:keys [players team-id title]}]
+       (let [players2 (or players
+                         @(rf/subscribe [::players-on-team team-id]))]
+         [:div.col-wrapper-outer
+           [:h2 title]
+           [:div {:id (str team-id "-summary")}]
+           [:div {:id team-id
+                  :class "team-column col-wrapper-inner"}
+             (doall (map PlayerBox players2))]]))}))
+
+(defn Columns []
+  (let [unteamed-players @(rf/subscribe [::unteamed-players])
+        sorted-teams @(rf/subscribe [::sorted-teams])]
+    [:div#columnsContainer.columns-wrapper
+     [SingleColumn {:team-id "allPlayersList"
+                    :title "All Players"
+                    :players unteamed-players
+                    :all-players-column? true}]
+     (for [team sorted-teams]
+       ^{:key (:team-id team)} [SingleColumn (assoc team :team-column? true)])]))
 
 (defn LinkBoxes []
-  [:div {:style "display: flex; flex-direction: row;"}
-    [:div {:style "margin-right: 1em;"}
+  [:div {:style {:display "flex", :flex-direction "row"}}
+    [:div {:style {:margin-right "1em"}}
       [:h2 "Link Box"]
       [:div#linkBox]]
     [:div
@@ -191,12 +227,15 @@
       {:id (first link-ids-set)}
       (map PlayerBox players)]))
 
-(defn DragAndDropColumns [all-players]
+(defn click-add-team-btn2 [_js-evt]
+  (rf/dispatch [::add-new-team]))
+
+(defn DragAndDropColumns []
   [:div
-   [:button#addTeamBtn "Add Team"]
+   [:button#addTeamBtn {:on-click click-add-team-btn2} "Add Team"]
    ; [:button#removeColumnBtn "Remove Column"]
-   (Columns all-players)
-   (LinkBoxes)])
+   [Columns]
+   [LinkBoxes]])
 
 (def example-csv-input-str
   (str "John,m,6\n"
@@ -206,22 +245,7 @@
        "Christi,f,7\n"
        "Jake,m,6\n"))
 
-(defn InputPlayersCSV []
-  [:div
-   [:h1 "Input Players"]
-   [:hr]
-   [:button#nextStepBtn "Go to next step"]
-   [:br] [:br]
-   [:div {:style "display: flex; flex-direction: row;"}
-    [:div {:style "border: 1px solid red; flex: 1;"}
-     [:h4 "Enter as CSV: Name, Sex, Strength"]
-     [:p "One player per row. Separate with commas: Name, Sex, Strength"]
-     [:textarea#inputPlayersTextarea
-       {:style "width: 100%; min-height: 400px;"}
-       example-csv-input-str]]
-    [:div {:style "border: 1px solid red; flex: 1;"}
-     [:h4 "Parsed Players"]
-     [:div#parsedPlayersTable]]]])
+
 
 (defn HatTourneyBuilder []
   [:div
@@ -233,7 +257,7 @@
    [:div#inputPlayersContainer {:style "display: none;"}
     (InputPlayersCSV)]
    [:div#dragAndDropColumnsContainer {:style "display: none;"}
-    (DragAndDropColumns [])]])
+    (DragAndDropColumns)]])
 
 (defn initial-render! []
   (set-inner-html! "appContainer" (html (HatTourneyBuilder))))
@@ -352,22 +376,23 @@
       nil
       s2)))
 
-(defn PlayerRow [{:keys [name sex strength]}]
-  [:tr
+(defn PlayerRow [{:keys [id name sex strength]}]
+  [:tr {:key id}
     [:td name]
     [:td sex]
     [:td strength]])
 
 (defn PlayersTable
-  [players]
-  [:table
-    [:thead
-      [:tr
-        [:th "Name"]
-        [:th "Gender"]
-        [:th "Strength"]]]
-    [:tbody
-      (map PlayerRow players)]])
+  []
+  (let [players @(rf/subscribe [::parsed-csv-players])]
+    [:table
+      [:thead
+        [:tr
+          [:th "Name"]
+          [:th "Gender"]
+          [:th "Strength"]]]
+      [:tbody
+        (map PlayerRow players)]]))
 
 (defn valid-player-row? [row]
   (and (vector? row)
@@ -381,12 +406,15 @@
        get-players-from-csv-input))
   ([csv-txt]
    (let [;; TODO: wrap this parse in try/catch
-         js-parsed-csv (csv/parse csv-txt)
+         js-parsed-csv (try
+                         (csv/parse csv-txt)
+                         (catch js/Error _e []))
          clj-parsed (js->clj js-parsed-csv)
          clj-parsed2 (filter valid-player-row? clj-parsed)
          players-vec (map
                        (fn [row]
-                         {:name (str/trim (nth row 0 nil))
+                         {:id (random-player-id)
+                          :name (str/trim (nth row 0 nil))
                           :sex (parse-gender-str (nth row 1 nil))
                           :strength (parse-strength-num (nth row 2 nil))})
                        clj-parsed2)]
@@ -396,9 +424,9 @@
   [js-evt]
   (let [txt (oget js-evt "currentTarget.value")
         players (get-players-from-csv-input txt)]
-    (swap! *state assoc :players players)
+    (swap! *state assoc :players players)))
 
-    (set-inner-html! "parsedPlayersTable" (html (PlayersTable players)))))
+    ; (set-inner-html! "parsedPlayersTable" (html (PlayersTable players)))))
 
 (defn init-sortable-list!
   [id {:keys [on-add on-remove]}]
@@ -608,8 +636,14 @@
 (defn click-players-input-btn [_js-evt]
   (swap! *state assoc :active-tab "PLAYERS_INPUT_TAB"))
 
+(defn click-players-input-btn2 [_js-evt]
+  (rf/dispatch [::set-active-tab "PLAYERS_INPUT_TAB"]))
+
 (defn click-teams-sorting-btn [_js-evt]
   (swap! *state assoc :active-tab "TEAM_COLUMNS_TAB"))
+
+(defn click-teams-sorting-btn2 [_js-evt]
+  (rf/dispatch [::set-active-tab "TEAM_COLUMNS_TAB"]))
 
 (def add-dom-events!
   (gfunctions/once
@@ -631,31 +665,205 @@
       (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box}))))
 
 ;; -----------------------------------------------------------------------------
+;; Events
+
+(def initial-app-db
+  {:active-tab "PLAYERS_INPUT_TAB"
+   :players-csv-txt example-csv-input-str
+   :players {}
+   :teams {}})
+
+;; :init event sets the initial app-db state
+;; NOTE: this event is called synchronously
+(rf/reg-event-db
+  :init-db
+  (fn [_ [_ initial-event]]
+    (timbre/info "Initializing app-db")
+    (if initial-event
+      (assoc initial-app-db :event initial-event)
+      initial-app-db)))
+
+; (rf/reg-event-fx
+;   :refresh-event
+;   (fn [{:keys [db]} _]
+;     (let [slug (get-in db [:event :slug])]
+;       {:fetch-event {:slug slug
+;                      :success-action [:update-event]
+;                      :error-action [:FIXME-WRITE-THIS]}})))
+
+(rf/reg-event-db
+  ::set-active-tab
+  (fn [db [_ new-tab-id]]
+    (assoc db :active-tab new-tab-id)))
+
+(rf/reg-event-db
+  ::set-players-csv-txt
+  (fn [db [_ new-txt]]
+    (assoc db :players-csv-txt new-txt)))
+
+(rf/reg-event-db
+  ::set-players-from-csv-input
+  (fn [db _]
+    (let [players (-> db :players-csv-txt get-players-from-csv-input)
+          players-map (zipmap (map :id players) players)]
+      (assoc db :players players-map
+                :active-tab "TEAM_COLUMNS_TAB"))))
+
+(rf/reg-event-db
+  ::add-new-team
+  (fn [db _]
+    (let [current-teams (:teams db)
+          new-team-id (random-team-id)
+          new-team {:team-id new-team-id
+                    :title (str "Team " (inc (count current-teams)))
+                    :order (inc (count current-teams))}]
+      (update db :teams assoc new-team-id new-team))))
+
+;; -----------------------------------------------------------------------------
+;; Subscriptions
+
+(rf/reg-sub
+  ::active-tab
+  (fn [db _]
+    (:active-tab db)))
+
+(rf/reg-sub
+  ::players-csv-txt
+  (fn [db _]
+    (:players-csv-txt db)))
+
+(rf/reg-sub
+  :event
+  (fn [db _]
+    (:event db)))
+
+(rf/reg-sub
+  ::parsed-csv-players
+  (fn [db _]
+    (-> db :players-csv-txt get-players-from-csv-input)))
+
+(rf/reg-sub
+  ::unteamed-players
+  (fn [db _]
+    (->> db
+      :players
+      vals
+      (filter unsorted-player?)
+      (sort compare-players))))
+
+(rf/reg-sub
+  ::sorted-teams
+  (fn [db _]
+    (->> db
+      :teams
+      vals
+      (sort-by :order))))
+
+;; FIXME: this does not take into account LinkedGroups
+(rf/reg-sub
+  ::players-on-team
+  (fn [db [_ team-id]]
+    (->> db
+      :players
+      vals
+      (filter #(= team-id (:team-id %)))
+      (sort compare-players))))
+
+;; -----------------------------------------------------------------------------
+;; Views
+
+(defn click-next-step-btn2 [_js-evt]
+  (rf/dispatch [::set-players-from-csv-input]))
+
+(defn InputPlayersCSV []
+  (let [players-csv-txt @(rf/subscribe [::players-csv-txt])]
+    [:<>
+     [:h1 "Input Players"]
+     [:hr]
+     [:button#nextStepBtn {:on-click click-next-step-btn2} "Go to next step"]
+     [:br] [:br]
+     [:div {:style {:display "flex", :flex-direction "row"}}
+      [:div ; {:style "border: 1px solid red; flex: 1;"}
+       [:h4 "Enter as CSV: Name, Sex, Strength"]
+       [:p "One player per row. Separate with commas: Name, Sex, Strength"]
+       [:textarea#inputPlayersTextarea
+         {:on-change #(rf/dispatch [::set-players-csv-txt (oget % "currentTarget.value")])
+          :style {:width "100%", :min-height "400px"}
+          :value players-csv-txt}]]
+      [:div {:style {:flex "1"}}
+       [:h4 "Parsed Players"]
+       [:div#parsedPlayersTable
+        [PlayersTable]]]]]))
+
+(defn HatTourneyBuilder2
+  []
+  (let [active-tab @(rf/subscribe [::active-tab])]
+    [:<>
+     [:h1 "Hat Tourney Builder"]
+     [:hr]
+     [:button#playersInputBtn {:on-click click-players-input-btn2} "Players Input"]
+     [:button#teamsSortingBtn {:on-click click-teams-sorting-btn2} "Teams Sorting"]
+     [:br] [:br]
+     (when (= active-tab "PLAYERS_INPUT_TAB")
+       [:div#inputPlayersContainer [InputPlayersCSV]])
+     (when (= active-tab "TEAM_COLUMNS_TAB")
+       [DragAndDropColumns])]))
+
+;; -----------------------------------------------------------------------------
 ;; Init
+
+; (defn refresh!
+;   "this function gets triggered after every shadow-cljs reload"
+;   []
+;   (swap! *state identity))
 
 (defn refresh!
   "this function gets triggered after every shadow-cljs reload"
   []
-  (swap! *state identity))
+  (rf/clear-subscription-cache!)
+  (reagent-dom/force-update-all))
 
-;; NOTE: this is a "run once" function
-(def init!
+(def app-container-el (get-element "appContainer"))
+
+(def start-rendering!
   (gfunctions/once
     (fn []
-      (timbre/info "Initialized Tourney Hat Builder 😎")
-      (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
-        (timbre/info "Loaded existing state from localStorage")
-        (reset! *state state-from-localstorage))
+      (timbre/info "Begin rendering")
+      (reagent-dom/render [(var HatTourneyBuilder2)] app-container-el))))
 
-      (add-watch *state :save-to-ls on-change-state-store-ls)
-      (add-watch *state :update-active-tab update-active-tab)
-      (add-watch *state :update-teams-and-players update-teams-and-players)
+(def init!
+  "Global application init.
+  Note: this function may only be called once."
+  (gfunctions/once
+    (fn []
+      (timbre/info "Initializing Hat Tourney Builder 😎")
+      (if-not app-container-el
+        (timbre/fatal "<div id=appContainer> element not found")
+        (let [] ;js-initial-event (oget+ js/window "ULTIMATE1.?initialEvent")]
+              ; initial-event (js->clj js-initial-event :keywordize-keys true)]
+          (rf/dispatch-sync [:init-db])
+          (start-rendering!))))))
+          ; (routing/init!)
+          ; (start-polling-for-updates!))))))
 
-      (set-inner-html! "appContainer" (html (HatTourneyBuilder)))
-      (add-dom-events!)
-      (init-sortablejs!)
+; ;; NOTE: this is a "run once" function
+; (def init!
+;   (gfunctions/once
+;     (fn []
+;       (timbre/info "Initialized Tourney Hat Builder 😎")
+;       (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
+;         (timbre/info "Loaded existing state from localStorage")
+;         (reset! *state state-from-localstorage))
 
-      ;; trigger an initial render from state
-      (swap! *state identity))))
+;       (add-watch *state :save-to-ls on-change-state-store-ls)
+;       (add-watch *state :update-active-tab update-active-tab)
+;       (add-watch *state :update-teams-and-players update-teams-and-players)
+
+;       (set-inner-html! "appContainer" (html (HatTourneyBuilder)))
+;       (add-dom-events!)
+;       (init-sortablejs!)
+
+;       ;; trigger an initial render from state
+;       (swap! *state identity))))
 
 (.addEventListener js/window "load" init!)
