@@ -5,6 +5,8 @@ UI tool for sorting teams for an Ultimate hat tournament.
 ## TODO
 
 - ability to refresh the page and not lose data
+- sort order on teams should persist on page refresh
+- Link groups should not have only one player
 - search All Players list
 - ability to edit team name
 - ability to delete team column
