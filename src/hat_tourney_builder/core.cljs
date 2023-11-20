@@ -168,10 +168,17 @@
   (let [el-id (oget js-evt "item.id")]
     (timbre/info "added to all players:" el-id)))
 
+;; FIXME: the core problem right now is that when using sortable it adjusts the DOM state
+;; and then React runs and tries to sync everything and the DOM has changed so it breaks with a runtime error
 (defn on-add-element-to-team-column
-  [js-evt]
-  (let [el-id (oget js-evt "item.id")]
-    (timbre/info "added to team column:" el-id)))
+  "Fires when a DOM element is dropped on a Team Column"
+  [team-id js-evt]
+  (js/setTimeout
+    (fn []
+      (let [player-id (oget js-evt "item.id")]
+        (rf/dispatch [::add-player-to-team {:team-id team-id
+                                            :player-id player-id}])))
+    1000))
 
 (defn SingleColumn
   [{:keys [all-players-column? players team-column? team-id title]}]
@@ -184,7 +191,7 @@
                               {:on-add on-add-element-to-all-players-column}))
        (when team-column?
          (init-sortable-list! team-id
-                              {:on-add on-add-element-to-team-column})))
+                              {:on-add (partial on-add-element-to-team-column team-id)})))
 
      :reagent-render
      (fn [{:keys [players team-id title]}]
@@ -462,16 +469,19 @@
   (js/window.Sortable.
     (get-element id)
     (js-obj "animation" 150
-            "group" "shared"
+            "group" (js-obj "name" "shared"
+                            "pull" "clone"
+                            "revertClone" true)
+
             "onAdd" (when on-add on-add)
-            "onRemove" (when on-remove on-remove))))
+            "onRemove" (when on-remove on-remove)
             ; "removeCloneOnHide" false
             ; "pull" "clone")))
-            ; "onClone" (fn [js-evt]
-            ;             (let [orig-el (oget js-evt "item")
-            ;                   clone-el (oget js-evt "clone")]
-            ;               (dom-util/set-style-prop! orig-el "background" "red")
-            ;               (dom-util/set-style-prop! clone-el "border" "5px solid green"))))))
+            "onClone" (fn [js-evt]
+                        (let [orig-el (oget js-evt "item")
+                              clone-el (oget js-evt "clone")]
+                          (dom-util/set-style-prop! orig-el "background" "red")
+                          (dom-util/set-style-prop! clone-el "border" "5px solid green"))))))
 
 (defn add-random-id-to-player
   [p]
@@ -756,6 +766,25 @@
       (update db :teams assoc new-team-id new-team))))
 
 (rf/reg-event-db
+  ::remove-team
+  (fn [db [_ team-id]]
+    ;; FIXME: write this
+    ;; - move all players on this team to "unsorted"
+    ;; - remove the team object
+    db))
+
+(rf/reg-event-db
+  ::add-player-to-team
+  (fn [db [_ {:keys [player-id team-id]}]]
+    (let [player (get-in db [:players player-id])
+          team (get-in db [:teams team-id])]
+      (assert player (str "player-id not found: " player-id))
+      (assert team (str "team-id not found: " team-id))
+      (if (and player team)
+        (assoc-in db [:players player-id :team-id] team-id)
+        db))))
+
+(rf/reg-event-db
   ::link-players-together
   (fn [db [_ player-ids]]
     (let [players (:players db)
@@ -864,14 +893,14 @@
      [:button#nextStepBtn {:on-click click-next-step-btn2} "Go to next step"]
      [:br] [:br]
      [:div {:style {:display "flex", :flex-direction "row"}}
-      [:div ; {:style "border: 1px solid red; flex: 1;"}
+      [:div {:style {:flex "1", :padding "8px 16px"}}
        [:h4 "Enter as CSV: Name, Sex, Strength"]
        [:p "One player per row. Separate with commas: Name, Sex, Strength"]
        [:textarea#inputPlayersTextarea
          {:on-change #(rf/dispatch [::set-players-csv-txt (oget % "currentTarget.value")])
           :style {:width "100%", :min-height "400px"}
           :value players-csv-txt}]]
-      [:div {:style {:flex "1"}}
+      [:div {:style {:flex "1", :padding "8px 16px"}}
        [:h4 "Parsed Players"]
        [:div#parsedPlayersTable
         [PlayersTable]]]]]))
