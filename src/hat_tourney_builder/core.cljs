@@ -9,9 +9,9 @@
     [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
     [hiccups.runtime :as hiccups]
     [oops.core :refer [oget oset!]]
-    [re-frame.core :as rf]
-    [reagent.core :as reagent]
-    [reagent.dom :as reagent-dom]
+    ; [re-frame.core :as rf]
+    ; [reagent.core :as reagent]
+    ; [reagent.dom :as reagent-dom]
     [taoensso.timbre :as timbre])
   (:require-macros
     [hiccups.core :as hiccups :refer [html]]))
@@ -170,74 +170,101 @@
 
 ;; FIXME: the core problem right now is that when using sortable it adjusts the DOM state
 ;; and then React runs and tries to sync everything and the DOM has changed so it breaks with a runtime error
-(defn on-add-element-to-team-column
-  "Fires when a DOM element is dropped on a Team Column"
-  [team-id js-evt]
-  (js/setTimeout
-    (fn []
-      (let [player-id (oget js-evt "item.id")]
-        (rf/dispatch [::add-player-to-team {:team-id team-id
-                                            :player-id player-id}])))
-    1000))
+; (defn on-add-element-to-team-column
+;   "Fires when a DOM element is dropped on a Team Column"
+;   [team-id js-evt]
+;   (js/setTimeout
+;     (fn []
+;       (let [player-id (oget js-evt "item.id")]
+;         (rf/dispatch [::add-player-to-team {:team-id team-id
+;                                             :player-id player-id}])))
+;     1000))
+
+; (defn SingleColumn
+;   [{:keys [all-players-column? players team-column? team-id title]}]
+;   (reagent/create-class
+;     {:display-name "SingleColumn"
+;      :component-did-mount
+;      (fn [_this]
+;        (when all-players-column?
+;          (init-sortable-list! team-id
+;                               {:on-add on-add-element-to-all-players-column}))
+;        (when team-column?
+;          (init-sortable-list! team-id
+;                               {:on-add (partial on-add-element-to-team-column team-id)})))
+
+;      :reagent-render
+;      (fn [{:keys [players team-id title]}]
+;        (let [players2 (or players
+;                          @(rf/subscribe [::players-on-team team-id]))]
+;          [:div.col-wrapper-outer
+;            [:h2 title]
+;            [:div {:id (str team-id "-summary")}]
+;            [:div {:id team-id
+;                   :class "team-column col-wrapper-inner"}
+;              (doall (map PlayerBox players2))]]))}))
 
 (defn SingleColumn
   [{:keys [all-players-column? players team-column? team-id title]}]
-  (reagent/create-class
-    {:display-name "SingleColumn"
-     :component-did-mount
-     (fn [_this]
-       (when all-players-column?
-         (init-sortable-list! team-id
-                              {:on-add on-add-element-to-all-players-column}))
-       (when team-column?
-         (init-sortable-list! team-id
-                              {:on-add (partial on-add-element-to-team-column team-id)})))
+  [:div.col-wrapper-outer
+    [:h2 title]
+    [:div {:id (str team-id "-summary")}]
+    [:div {:id team-id
+           :class "team-column col-wrapper-inner"}
+      (doall (map PlayerBox players))]])
 
-     :reagent-render
-     (fn [{:keys [players team-id title]}]
-       (let [players2 (or players
-                         @(rf/subscribe [::players-on-team team-id]))]
-         [:div.col-wrapper-outer
-           [:h2 title]
-           [:div {:id (str team-id "-summary")}]
-           [:div {:id team-id
-                  :class "team-column col-wrapper-inner"}
-             (doall (map PlayerBox players2))]]))}))
+; (defn Columns []
+;   (let [unteamed-players @(rf/subscribe [::unteamed-players])
+;         sorted-teams @(rf/subscribe [::sorted-teams])]
+;     [:div#columnsContainer.columns-wrapper
+;      [SingleColumn {:team-id "allPlayersList"
+;                     :title "All Players"
+;                     :players unteamed-players
+;                     :all-players-column? true}]
+;      (for [team sorted-teams]
+;        ^{:key (:team-id team)} [SingleColumn (assoc team :team-column? true)])]))
 
 (defn Columns []
-  (let [unteamed-players @(rf/subscribe [::unteamed-players])
-        sorted-teams @(rf/subscribe [::sorted-teams])]
-    [:div#columnsContainer.columns-wrapper
-     [SingleColumn {:team-id "allPlayersList"
-                    :title "All Players"
-                    :players unteamed-players
-                    :all-players-column? true}]
-     (for [team sorted-teams]
-       ^{:key (:team-id team)} [SingleColumn (assoc team :team-column? true)])]))
+  [:div#columnsContainer.columns-wrapper
+   (SingleColumn {:team-id "allPlayersList"
+                  :title "All Players"
+                  :players [] ; unteamed-players
+                  :all-players-column? true})])
+   ; (for [team sorted-teams]
+   ;   ^{:key (:team-id team)} [SingleColumn (assoc team :team-column? true)])])
 
 (declare on-add-link-box
          on-add-unlink-box)
 
+; (defn LinkBoxes []
+;   (reagent/create-class
+;     {:display-name "LinkBoxes"
+
+;      :component-did-mount
+;      (fn [_this]
+;        (init-sortable-list! "linkBox"
+;                             {:on-add on-add-link-box})
+;        (init-sortable-list! "unlinkBox"
+;                             {:on-add on-add-unlink-box}))
+
+;      :reagent-render
+;      (fn []
+;        [:div {:style {:display "flex", :flex-direction "row"}}
+;          [:div {:style {:margin-right "1em"}}
+;            [:h2 "Link Box"]
+;            [:div#linkBox]]
+;          [:div
+;            [:h2 "Unlink Box"]
+;            [:div#unlinkBox]]])}))
+
 (defn LinkBoxes []
-  (reagent/create-class
-    {:display-name "LinkBoxes"
-
-     :component-did-mount
-     (fn [_this]
-       (init-sortable-list! "linkBox"
-                            {:on-add on-add-link-box})
-       (init-sortable-list! "unlinkBox"
-                            {:on-add on-add-unlink-box}))
-
-     :reagent-render
-     (fn []
-       [:div {:style {:display "flex", :flex-direction "row"}}
-         [:div {:style {:margin-right "1em"}}
-           [:h2 "Link Box"]
-           [:div#linkBox]]
-         [:div
-           [:h2 "Unlink Box"]
-           [:div#unlinkBox]]])}))
+  [:div {:style "display: flex; flex-direction: row"}
+   [:div {:style "margin-right: 1em"}
+     [:h2 "Link Box"]
+     [:div#linkBox]]
+   [:div
+     [:h2 "Unlink Box"]
+     [:div#unlinkBox]]])
 
 (defn LinkedPlayersBox [players]
   (let [link-ids (map :link-id players)
@@ -249,15 +276,16 @@
       {:id (first link-ids-set)}
       (map PlayerBox players)]))
 
-(defn click-add-team-btn2 [_js-evt]
-  (rf/dispatch [::add-new-team]))
+; (defn click-add-team-btn2 [_js-evt]
+;   (rf/dispatch [::add-new-team]))
 
 (defn DragAndDropColumns []
   [:div
-   [:button#addTeamBtn {:on-click click-add-team-btn2} "Add Team"]
+   ; [:button#addTeamBtn {:on-click click-add-team-btn2} "Add Team"]
+   [:button#addTeamBtn "Add Team"]
    ; [:button#removeColumnBtn "Remove Column"]
-   [Columns]
-   [LinkBoxes]])
+   (Columns)
+   (LinkBoxes)])
 
 (def example-csv-input-str
   (str "John,m,6\n"
@@ -333,48 +361,48 @@
         players-by-link-group (group-by :link-id linked-players)]
     (select-keys players-by-link-group link-ids)))
 
-; (defn on-add-link-box
-;   "fires when a player has been added to the Link Box"
-;   [_js-evt]
-;   (let [players (get-players-in-dom-element "linkBox")
-;         link-ids (map :link-id players)
-;         player-ids (map :id players)
-
-;         link-id (or ;; find an existing link-id
-;                     (->> players
-;                       (map :link-id)
-;                       (filter looks-like-a-link-id?)
-;                       first)
-;                     ;; create one
-;                     (random-link-id))
-;         linked-players (map
-;                          (fn [p]
-;                            (assoc p :link-id link-id
-;                                     :inside-link-box? true
-;                                     :inside-unlink-box? false
-;                                     :team-id nil))
-;                          players)
-;         linked-players-map (zipmap (map :id linked-players) linked-players)]
-;     (swap! *state update :players merge linked-players-map)
-;     (timbre/info "Players in LinkBox:"
-;                  (map
-;                    (fn [p]
-;                      (str (:name p) " (" (:id p) ")"))
-;                    linked-players))))
-
 (defn on-add-link-box
-  "fires when an element has been added to the Link Box"
+  "fires when a player has been added to the Link Box"
   [_js-evt]
-  (let [player-ids (get-player-ids-in-dom-element "linkBox")]
-    ;     linkbox-el (get-element "linkBox")
-    ;     children-els (oget linkbox-el "children")
-    ;     children-ids (reduce
-    ;                    (fn [acc el]
-    ;                      (conj acc (oget el "id")))
-    ;                    []
-    ;                    children-els)]
-    ; (timbre/info children-ids)
-    (rf/dispatch [::link-players-together player-ids])))
+  (let [players (get-players-in-dom-element "linkBox")
+        link-ids (map :link-id players)
+        player-ids (map :id players)
+
+        link-id (or ;; find an existing link-id
+                    (->> players
+                      (map :link-id)
+                      (filter looks-like-a-link-id?)
+                      first)
+                    ;; create one
+                    (random-link-id))
+        linked-players (map
+                         (fn [p]
+                           (assoc p :link-id link-id
+                                    :inside-link-box? true
+                                    :inside-unlink-box? false
+                                    :team-id nil))
+                         players)
+        linked-players-map (zipmap (map :id linked-players) linked-players)]
+    (swap! *state update :players merge linked-players-map)
+    (timbre/info "Players in LinkBox:"
+                 (map
+                   (fn [p]
+                     (str (:name p) " (" (:id p) ")"))
+                   linked-players))))
+
+; (defn on-add-link-box
+;   "fires when an element has been added to the Link Box"
+;   [_js-evt]
+;   (let [player-ids (get-player-ids-in-dom-element "linkBox")
+;         linkbox-el (get-element "linkBox")
+;         children-els (oget linkbox-el "children")
+;         children-ids (reduce
+;                        (fn [acc el]
+;                          (conj acc (oget el "id")))
+;                        []
+;                        children-els)]
+;     (timbre/info children-ids)
+;     (rf/dispatch [::link-players-together player-ids])))
 
 (defn on-add-unlink-box
   "fires when an element is added to the unlink box"
@@ -418,17 +446,17 @@
     [:td sex]
     [:td strength]])
 
-(defn PlayersTable
-  []
-  (let [players @(rf/subscribe [::parsed-csv-players])]
-    [:table
-      [:thead
-        [:tr
-          [:th "Name"]
-          [:th "Gender"]
-          [:th "Strength"]]]
-      [:tbody
-        (map PlayerRow players)]]))
+; (defn PlayersTable
+;   []
+;   (let [players @(rf/subscribe [::parsed-csv-players])]
+;     [:table
+;       [:thead
+;         [:tr
+;           [:th "Name"]
+;           [:th "Gender"]
+;           [:th "Strength"]]]
+;       [:tbody
+;         (map PlayerRow players)]]))
 
 (defn valid-player-row? [row]
   (and (vector? row)
@@ -474,32 +502,50 @@
                             "revertClone" true)
 
             "onAdd" (when on-add on-add)
-            "onRemove" (when on-remove on-remove)
+            "onRemove" (when on-remove on-remove))))
             ; "removeCloneOnHide" false
             ; "pull" "clone")))
-            "onClone" (fn [js-evt]
-                        (let [orig-el (oget js-evt "item")
-                              clone-el (oget js-evt "clone")]
-                          (dom-util/set-style-prop! orig-el "background" "red")
-                          (dom-util/set-style-prop! clone-el "border" "5px solid green"))))))
+            ; "onClone" (fn [js-evt]
+            ;             (let [orig-el (oget js-evt "item")
+            ;                   clone-el (oget js-evt "clone")]
+            ;               (dom-util/set-style-prop! orig-el "background" "red")
+            ;               (dom-util/set-style-prop! clone-el "border" "5px solid green"))))))
 
 (defn add-random-id-to-player
   [p]
   (assoc p :id (random-player-id)))
 
-;; FIXME: need to handle when a linkedPlayer element is dragged here
+(defn link-id->player-ids
+  "Returns the player-ids associated with a link-id"
+  [link-id]
+  ;; FIXME: write this
+  nil)
+
 (defn add-to-all-players-list
   "fires when an element is added to the All Players list"
   [js-evt]
-  (let [player-id (oget js-evt "item.id")
-        current-state @*state
-        player (get-in current-state [:players player-id])]
-    (assert player (str "Player with id not found:" player-id))
-    (swap! *state update-in [:players player-id] merge {:team-id nil
-                                                        :inside-link-box? false
-                                                        :inside-unlink-box? false})
-    (timbre/info (str "Added player " (:name player) " (" player-id ") "
-                      "to un-teamed list"))))
+  (let [el-id (oget js-evt "item.id")
+        single-player? (looks-like-a-player-id? el-id)
+        linked-players? (looks-like-a-link-id? el-id)
+        current-state @*state]
+    (cond
+      single-player?
+      (let [player-id el-id
+            player (get-in current-state [:players player-id])]
+        (assert player (str "Player with id not found:" player-id))
+        (swap! *state update-in [:players player-id] merge {:team-id nil
+                                                            :inside-link-box? false
+                                                            :inside-unlink-box? false})
+        (timbre/info (str "Added player " (:name player) " (" player-id ") "
+                          "to un-teamed list")))
+
+      linked-players?
+      (let [link-id el-id
+            player-ids (link-id->player-ids link-id)]
+        (timbre/info "FIXME: handle adding linked players here"))
+
+      :else
+      (timbre/error "Unrecognized element dragged into LinkBox:" (oget js-evt "item")))))
 
 (defn add-player-to-team!
   [player team]
@@ -682,14 +728,14 @@
 (defn click-players-input-btn [_js-evt]
   (swap! *state assoc :active-tab "PLAYERS_INPUT_TAB"))
 
-(defn click-players-input-btn2 [_js-evt]
-  (rf/dispatch [::set-active-tab "PLAYERS_INPUT_TAB"]))
+; (defn click-players-input-btn2 [_js-evt]
+;   (rf/dispatch [::set-active-tab "PLAYERS_INPUT_TAB"]))
 
 (defn click-teams-sorting-btn [_js-evt]
   (swap! *state assoc :active-tab "TEAM_COLUMNS_TAB"))
 
-(defn click-teams-sorting-btn2 [_js-evt]
-  (rf/dispatch [::set-active-tab "TEAM_COLUMNS_TAB"]))
+; (defn click-teams-sorting-btn2 [_js-evt]
+;   (rf/dispatch [::set-active-tab "TEAM_COLUMNS_TAB"]))
 
 (def add-dom-events!
   (gfunctions/once
@@ -719,205 +765,206 @@
    :players {}
    :teams {}})
 
-;; :init event sets the initial app-db state
-;; NOTE: this event is called synchronously
-(rf/reg-event-db
-  :init-db
-  (fn [_ [_ initial-event]]
-    (timbre/info "Initializing app-db")
-    (if initial-event
-      (assoc initial-app-db :event initial-event)
-      initial-app-db)))
+; ;; :init event sets the initial app-db state
+; ;; NOTE: this event is called synchronously
+; (rf/reg-event-db
+;   :init-db
+;   (fn [_ [_ initial-event]]
+;     (timbre/info "Initializing app-db")
+;     (if initial-event
+;       (assoc initial-app-db :event initial-event)
+;       initial-app-db)))
 
-; (rf/reg-event-fx
-;   :refresh-event
-;   (fn [{:keys [db]} _]
-;     (let [slug (get-in db [:event :slug])]
-;       {:fetch-event {:slug slug
-;                      :success-action [:update-event]
-;                      :error-action [:FIXME-WRITE-THIS]}})))
+; ; (rf/reg-event-fx
+; ;   :refresh-event
+; ;   (fn [{:keys [db]} _]
+; ;     (let [slug (get-in db [:event :slug])]
+; ;       {:fetch-event {:slug slug
+; ;                      :success-action [:update-event]
+; ;                      :error-action [:FIXME-WRITE-THIS]}})))
 
-(rf/reg-event-db
-  ::set-active-tab
-  (fn [db [_ new-tab-id]]
-    (assoc db :active-tab new-tab-id)))
+; (rf/reg-event-db
+;   ::set-active-tab
+;   (fn [db [_ new-tab-id]]
+;     (assoc db :active-tab new-tab-id)))
 
-(rf/reg-event-db
-  ::set-players-csv-txt
-  (fn [db [_ new-txt]]
-    (assoc db :players-csv-txt new-txt)))
+; (rf/reg-event-db
+;   ::set-players-csv-txt
+;   (fn [db [_ new-txt]]
+;     (assoc db :players-csv-txt new-txt)))
 
-(rf/reg-event-db
-  ::set-players-from-csv-input
-  (fn [db _]
-    (let [players (-> db :players-csv-txt get-players-from-csv-input)
-          players-map (zipmap (map :id players) players)]
-      (assoc db :players players-map
-                :active-tab "TEAM_COLUMNS_TAB"))))
+; (rf/reg-event-db
+;   ::set-players-from-csv-input
+;   (fn [db _]
+;     (let [players (-> db :players-csv-txt get-players-from-csv-input)
+;           players-map (zipmap (map :id players) players)]
+;       (assoc db :players players-map
+;                 :active-tab "TEAM_COLUMNS_TAB"))))
 
-(rf/reg-event-db
-  ::add-new-team
-  (fn [db _]
-    (let [current-teams (:teams db)
-          new-team-id (random-team-id)
-          new-team {:team-id new-team-id
-                    :title (str "Team " (inc (count current-teams)))
-                    :order (inc (count current-teams))}]
-      (update db :teams assoc new-team-id new-team))))
+; (rf/reg-event-db
+;   ::add-new-team
+;   (fn [db _]
+;     (let [current-teams (:teams db)
+;           new-team-id (random-team-id)
+;           new-team {:team-id new-team-id
+;                     :title (str "Team " (inc (count current-teams)))
+;                     :order (inc (count current-teams))}]
+;       (update db :teams assoc new-team-id new-team))))
 
-(rf/reg-event-db
-  ::remove-team
-  (fn [db [_ team-id]]
-    ;; FIXME: write this
-    ;; - move all players on this team to "unsorted"
-    ;; - remove the team object
-    db))
+; (rf/reg-event-db
+;   ::remove-team
+;   (fn [db [_ team-id]]
+;     ;; FIXME: write this
+;     ;; - move all players on this team to "unsorted"
+;     ;; - remove the team object
+;     db))
 
-(rf/reg-event-db
-  ::add-player-to-team
-  (fn [db [_ {:keys [player-id team-id]}]]
-    (let [player (get-in db [:players player-id])
-          team (get-in db [:teams team-id])]
-      (assert player (str "player-id not found: " player-id))
-      (assert team (str "team-id not found: " team-id))
-      (if (and player team)
-        (assoc-in db [:players player-id :team-id] team-id)
-        db))))
+; (rf/reg-event-db
+;   ::add-player-to-team
+;   (fn [db [_ {:keys [player-id team-id]}]]
+;     (let [player (get-in db [:players player-id])
+;           team (get-in db [:teams team-id])]
+;       (assert player (str "player-id not found: " player-id))
+;       (assert team (str "team-id not found: " team-id))
+;       (if (and player team)
+;         (assoc-in db [:players player-id :team-id] team-id)
+;         db))))
 
-(rf/reg-event-db
-  ::link-players-together
-  (fn [db [_ player-ids]]
-    (let [players (:players db)
-          ;; filter the player-ids to make sure they are valid
-          ;; and warn if otherwise
-          player-ids2 (reduce
-                        (fn [player-ids3 player-id]
-                          (if (get players player-id)
-                            (conj player-ids3 player-id)
-                            (do (timbre/warn "Unable to find player-id:" player-id)
-                                player-ids3)))
-                        []
-                        player-ids)]
-      ;; do not create a link-id if there is only one player in the box
-      (if (= 1 (count player-ids2))
-        (update-in db [:players (first player-ids2)] merge
-                   {:link-id nil
-                    :inside-link-box? false
-                    :inside-unlink-box? false
-                    :team-id nil})
-        ;; else create a link id (or make a new one) and link all of the players
-        ;; together
-        (let [linked-players (select-keys players player-ids2)
-              link-ids (filter looks-like-a-link-id? (map :link-id linked-players))
-              link-id (or (first link-ids) (random-link-id))
-              linked-players2 (map-indexed
-                                (fn [idx player-id]
-                                  (let [p (get players player-id)]
-                                    (assoc p :link-order (inc idx)
-                                             :link-id link-id
-                                             :inside-link-box? true
-                                             :inside-unlink-box? false
-                                             :team-id nil)))
-                                player-ids2)
-              linked-players2-map (zipmap player-ids2 linked-players2)]
-          (update db :players merge linked-players2-map))))))
+; (rf/reg-event-db
+;   ::link-players-together
+;   (fn [db [_ player-ids]]
+;     (let [players (:players db)
+;           ;; filter the player-ids to make sure they are valid
+;           ;; and warn if otherwise
+;           player-ids2 (reduce
+;                         (fn [player-ids3 player-id]
+;                           (if (get players player-id)
+;                             (conj player-ids3 player-id)
+;                             (do (timbre/warn "Unable to find player-id:" player-id)
+;                                 player-ids3)))
+;                         []
+;                         player-ids)]
+;       ;; do not create a link-id if there is only one player in the box
+;       (if (= 1 (count player-ids2))
+;         (update-in db [:players (first player-ids2)] merge
+;                    {:link-id nil
+;                     :inside-link-box? false
+;                     :inside-unlink-box? false
+;                     :team-id nil})
+;         ;; else create a link id (or make a new one) and link all of the players
+;         ;; together
+;         (let [linked-players (select-keys players player-ids2)
+;               link-ids (filter looks-like-a-link-id? (map :link-id linked-players))
+;               link-id (or (first link-ids) (random-link-id))
+;               linked-players2 (map-indexed
+;                                 (fn [idx player-id]
+;                                   (let [p (get players player-id)]
+;                                     (assoc p :link-order (inc idx)
+;                                              :link-id link-id
+;                                              :inside-link-box? true
+;                                              :inside-unlink-box? false
+;                                              :team-id nil)))
+;                                 player-ids2)
+;               linked-players2-map (zipmap player-ids2 linked-players2)]
+;           (update db :players merge linked-players2-map))))))
 
-    ; (let [current-teams (:teams db)
-    ;       new-team-id (random-team-id)
-    ;       new-team {:team-id new-team-id
-    ;                 :title (str "Team " (inc (count current-teams)))
-    ;                 :order (inc (count current-teams))}]
-    ;   (update db :teams assoc new-team-id new-team))))
+;     ; (let [current-teams (:teams db)
+;     ;       new-team-id (random-team-id)
+;     ;       new-team {:team-id new-team-id
+;     ;                 :title (str "Team " (inc (count current-teams)))
+;     ;                 :order (inc (count current-teams))}]
+;     ;   (update db :teams assoc new-team-id new-team))))
 
 ;; -----------------------------------------------------------------------------
 ;; Subscriptions
 
-(rf/reg-sub
-  ::active-tab
-  (fn [db _]
-    (:active-tab db)))
+; (rf/reg-sub
+;   ::active-tab
+;   (fn [db _]
+;     (:active-tab db)))
 
-(rf/reg-sub
-  ::players-csv-txt
-  (fn [db _]
-    (:players-csv-txt db)))
+; (rf/reg-sub
+;   ::players-csv-txt
+;   (fn [db _]
+;     (:players-csv-txt db)))
 
-(rf/reg-sub
-  :event
-  (fn [db _]
-    (:event db)))
+; (rf/reg-sub
+;   :event
+;   (fn [db _]
+;     (:event db)))
 
-(rf/reg-sub
-  ::parsed-csv-players
-  (fn [db _]
-    (-> db :players-csv-txt get-players-from-csv-input)))
+; (rf/reg-sub
+;   ::parsed-csv-players
+;   (fn [db _]
+;     (-> db :players-csv-txt get-players-from-csv-input)))
 
-(rf/reg-sub
-  ::unteamed-players
-  (fn [db _]
-    (->> db
-      :players
-      vals
-      (filter unsorted-player?)
-      (sort compare-players))))
+; (rf/reg-sub
+;   ::unteamed-players
+;   (fn [db _]
+;     (->> db
+;       :players
+;       vals
+;       (filter unsorted-player?)
+;       (sort compare-players))))
 
-(rf/reg-sub
-  ::sorted-teams
-  (fn [db _]
-    (->> db
-      :teams
-      vals
-      (sort-by :order))))
+; (rf/reg-sub
+;   ::sorted-teams
+;   (fn [db _]
+;     (->> db
+;       :teams
+;       vals
+;       (sort-by :order))))
 
-;; FIXME: this does not take into account LinkedGroups
-(rf/reg-sub
-  ::players-on-team
-  (fn [db [_ team-id]]
-    (->> db
-      :players
-      vals
-      (filter #(= team-id (:team-id %)))
-      (sort compare-players))))
+; ;; FIXME: this does not take into account LinkedGroups
+; (rf/reg-sub
+;   ::players-on-team
+;   (fn [db [_ team-id]]
+;     (->> db
+;       :players
+;       vals
+;       (filter #(= team-id (:team-id %)))
+;       (sort compare-players))))
 
 ;; -----------------------------------------------------------------------------
 ;; Views
 
-(defn click-next-step-btn2 [_js-evt]
-  (rf/dispatch [::set-players-from-csv-input]))
+; (defn click-next-step-btn2 [_js-evt]
+;   (rf/dispatch [::set-players-from-csv-input]))
 
 (defn InputPlayersCSV []
-  (let [players-csv-txt @(rf/subscribe [::players-csv-txt])]
-    [:<>
-     [:h1 "Input Players"]
-     [:hr]
-     [:button#nextStepBtn {:on-click click-next-step-btn2} "Go to next step"]
-     [:br] [:br]
-     [:div {:style {:display "flex", :flex-direction "row"}}
-      [:div {:style {:flex "1", :padding "8px 16px"}}
-       [:h4 "Enter as CSV: Name, Sex, Strength"]
-       [:p "One player per row. Separate with commas: Name, Sex, Strength"]
-       [:textarea#inputPlayersTextarea
-         {:on-change #(rf/dispatch [::set-players-csv-txt (oget % "currentTarget.value")])
-          :style {:width "100%", :min-height "400px"}
-          :value players-csv-txt}]]
-      [:div {:style {:flex "1", :padding "8px 16px"}}
-       [:h4 "Parsed Players"]
-       [:div#parsedPlayersTable
-        [PlayersTable]]]]]))
+  [:div
+   [:h1 "Input Players"]
+   [:hr]
+   ; [:button#nextStepBtn {:on-click click-next-step-btn} "Go to next step"]
+   [:button#nextStepBtn "Go to next step"]
+   [:br] [:br]
+   [:div {:style "display: flex; flex-direction: row;"}
+    [:div {:style "flex 1; padding: 8px 16px"}
+     [:h4 "Enter as CSV: Name, Sex, Strength"]
+     [:p "One player per row. Separate with commas: Name, Sex, Strength"]
+     [:textarea#inputPlayersTextarea
+       {; :on-change #(rf/dispatch [::set-players-csv-txt (oget % "currentTarget.value")])
+        :style "width: 100%; min-height: 400px"
+        :value "FIXME"}]]
+    [:div {:style "flex: 1; padding: 8px 16px"}
+     [:h4 "Parsed Players"]
+     [:div#parsedPlayersTable
+      ; [PlayersTable]
+      "FIXME: players table"]]]])
 
-(defn HatTourneyBuilder2
-  []
-  (let [active-tab @(rf/subscribe [::active-tab])]
-    [:<>
-     [:h1 "Hat Tourney Builder"]
-     [:hr]
-     [:button#playersInputBtn {:on-click click-players-input-btn2} "Players Input"]
-     [:button#teamsSortingBtn {:on-click click-teams-sorting-btn2} "Teams Sorting"]
-     [:br] [:br]
-     (when (= active-tab "PLAYERS_INPUT_TAB")
-       [:div#inputPlayersContainer [InputPlayersCSV]])
-     (when (= active-tab "TEAM_COLUMNS_TAB")
-       [DragAndDropColumns])]))
+; (defn HatTourneyBuilder2
+;   []
+;   (let [active-tab @(rf/subscribe [::active-tab])]
+;     [:<>
+;      [:h1 "Hat Tourney Builder"]
+;      [:hr]
+;      [:button#playersInputBtn {:on-click click-players-input-btn2} "Players Input"]
+;      [:button#teamsSortingBtn {:on-click click-teams-sorting-btn2} "Teams Sorting"]
+;      [:br] [:br]
+;      (when (= active-tab "PLAYERS_INPUT_TAB")
+;        [:div#inputPlayersContainer [InputPlayersCSV]])
+;      (when (= active-tab "TEAM_COLUMNS_TAB")
+;        [DragAndDropColumns])]))
 
 ;; -----------------------------------------------------------------------------
 ;; Init
@@ -930,53 +977,54 @@
 (defn refresh!
   "this function gets triggered after every shadow-cljs reload"
   []
-  (rf/clear-subscription-cache!)
-  (reagent-dom/force-update-all))
+  nil)
+  ; (rf/clear-subscription-cache!)
+  ; (reagent-dom/force-update-all))
 
 (def app-container-el (get-element "appContainer"))
 
-(def start-rendering!
-  (gfunctions/once
-    (fn []
-      (timbre/info "Begin rendering")
-      (reagent-dom/render [(var HatTourneyBuilder2)] app-container-el))))
-
-(def init!
-  "Global application init.
-  Note: this function may only be called once."
-  (gfunctions/once
-    (fn []
-      (timbre/info "Initializing Hat Tourney Builder 😎")
-      (if-not app-container-el
-        (timbre/fatal "<div id=appContainer> element not found")
-;       (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
-;         (timbre/info "Loaded existing state from localStorage")
-;         (reset! *state state-from-localstorage))
-        (let [] ;js-initial-event (oget+ js/window "ULTIMATE1.?initialEvent")]
-              ; initial-event (js->clj js-initial-event :keywordize-keys true)]
-          (rf/dispatch-sync [:init-db])
-          (start-rendering!))))))
-          ; (routing/init!)
-          ; (start-polling-for-updates!))))))
-
-; ;; NOTE: this is a "run once" function
-; (def init!
+; (def start-rendering!
 ;   (gfunctions/once
 ;     (fn []
-;       (timbre/info "Initialized Tourney Hat Builder 😎")
-;       (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
-;         (timbre/info "Loaded existing state from localStorage")
-;         (reset! *state state-from-localstorage))
+;       (timbre/info "Begin rendering")
+;       (reagent-dom/render [(var HatTourneyBuilder2)] app-container-el))))
 
-;       (add-watch *state :save-to-ls on-change-state-store-ls)
-;       (add-watch *state :update-active-tab update-active-tab)
-;       (add-watch *state :update-teams-and-players update-teams-and-players)
+; (def init!
+;   "Global application init.
+;   Note: this function may only be called once."
+;   (gfunctions/once
+;     (fn []
+;       (timbre/info "Initializing Hat Tourney Builder 😎")
+;       (if-not app-container-el
+;         (timbre/fatal "<div id=appContainer> element not found")
+; ;       (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
+; ;         (timbre/info "Loaded existing state from localStorage")
+; ;         (reset! *state state-from-localstorage))
+;         (let [] ;js-initial-event (oget+ js/window "ULTIMATE1.?initialEvent")]
+;               ; initial-event (js->clj js-initial-event :keywordize-keys true)]
+;           (rf/dispatch-sync [:init-db])
+;           (start-rendering!))))))
+;           ; (routing/init!)
+;           ; (start-polling-for-updates!))))))
 
-;       (set-inner-html! "appContainer" (html (HatTourneyBuilder)))
-;       (add-dom-events!)
-;       (init-sortablejs!)
+; ;; NOTE: this is a "run once" function
+(def init!
+  (gfunctions/once
+    (fn []
+      (timbre/info "Initialized Tourney Hat Builder 😎")
+      (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
+        (timbre/info "Loaded existing state from localStorage")
+        (reset! *state state-from-localstorage))
 
-;       ;; trigger an initial render from state
-;       (swap! *state identity))))
+      (add-watch *state :save-to-ls on-change-state-store-ls)
+      (add-watch *state :update-active-tab update-active-tab)
+      (add-watch *state :update-teams-and-players update-teams-and-players)
+
+      (set-inner-html! "appContainer" (html (HatTourneyBuilder)))
+      (add-dom-events!)
+      (init-sortablejs!)
+
+      ;; trigger an initial render from state
+      (swap! *state identity))))
 
 (.addEventListener js/window "load" init!)
