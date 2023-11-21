@@ -14,7 +14,6 @@
     [hiccups.core :as hiccups :refer [html]]))
 
 (declare
-  get-players-in-dom-element
   init-sortable-list!
   InputPlayersCSV
   random-player-id)
@@ -267,9 +266,6 @@
    [:div#dragAndDropColumnsContainer {:style "display: none;"}
     (DragAndDropColumns)]])
 
-(defn initial-render! []
-  (set-inner-html! "appContainer" (html (HatTourneyBuilder))))
-
 (defn get-link-ids-in-dom-element
   "returns a collection of all link ids within a DOM element"
   [el-id]
@@ -296,16 +292,17 @@
 
 (defn get-players-in-dom-element
   "returns a collection of all players within a DOM element"
-  [el-id]
-  (let [player-ids (get-player-ids-in-dom-element el-id)
-        players-map (:players @*state)
-        players (map
-                  (fn [player-id]
-                    (if-let [p (get players-map player-id)]
-                      p
-                      (timbre/warn "Unable to find player with id:" player-id)))
-                  player-ids)]
-    (remove nil? players)))
+  ([el-id]
+   (get-players-in-dom-element el-id (:players @*state)))
+  ([el-id all-players-map]
+   (let [player-ids (get-player-ids-in-dom-element el-id)
+         players (map
+                   (fn [player-id]
+                     (if-let [p (get all-players-map player-id)]
+                       p
+                       (timbre/warn "Unable to find player with id:" player-id)))
+                   player-ids)]
+     (remove nil? players))))
 
 (defn linked-player? [p]
   (looks-like-a-link-id? (:link-id p)))
@@ -313,13 +310,13 @@
 ;; TODO: improve performance here
 (defn get-link-groups-in-dom-element
   "returns a map of <link-id> ==> [<player> <player> <player> ...]"
-  [el-id]
-  (let [link-ids (get-link-ids-in-dom-element el-id)
-        ; player-ids (get-player-ids-in-dom-element el-id)
-        players-map (:players @*state)
-        linked-players (filter linked-player? (vals players-map))
-        players-by-link-group (group-by :link-id linked-players)]
-    (select-keys players-by-link-group link-ids)))
+  ([el-id]
+   (get-link-groups-in-dom-element el-id (:players @*state)))
+  ([el-id all-players-map]
+   (let [link-ids (get-link-ids-in-dom-element el-id)
+         linked-players (filter linked-player? (vals all-players-map))
+         players-by-link-group (group-by :link-id linked-players)]
+     (select-keys players-by-link-group link-ids))))
 
 (defn on-add-link-box
   "fires when a player has been added to the Link Box"
@@ -586,7 +583,34 @@
        (not (:inside-link-box? p))
        (not (:inside-unlink-box? p))))
 
-(defn update-players-in-team-column
+(defn update-players-in-all-players-column!
+  "Updates the DOM inside of the All Players column."
+  [all-players]
+  (let [players-in-dom (get-players-in-dom-element "allPlayersList" all-players)
+        link-groups-in-dom (get-link-groups-in-dom-element "allPlayersList" all-players)
+        unteamed-players (filter
+                           (fn [p]
+                             (and (nil? (:team-id p))
+                                  (not (:inside-link-box? p))
+                                  (not (:inside-unlink-box? p))))
+                           (vals all-players))
+        unlinked-players-in-dom (filter #(not (:link-id %)) players-in-dom)
+        unlinked-players (filter #(not (:link-id %)) unteamed-players)
+        unlinked-player-ids-in-dom (set (map :id unlinked-players-in-dom))
+        linked-players (filter linked-player? unteamed-players)
+        link-groups (group-by :link-id linked-players)]
+    ;; build link boxes
+    (doseq [[link-id players] link-groups]
+      (when-not (get link-groups-in-dom link-id)
+        (dom-util/append-html! "allPlayersList" (html (LinkedPlayersBox (sort compare-players players))))))
+
+    ;; build solo players
+    (doseq [p unlinked-players]
+      (when-not (contains? unlinked-player-ids-in-dom (:id p))
+        (dom-util/append-html! "allPlayersList" (html (PlayerBox p)))))))
+
+;; NOTE: update-players-in-team-column! and update-players-in-all-players-column! functions could be combined
+(defn update-players-in-team-column!
   [players-on-team team]
   (let [team-id (:team-id team)
         players-in-dom (get-players-in-dom-element team-id)
@@ -596,12 +620,6 @@
         unlinked-player-ids-in-dom (set (map :id unlinked-players-in-dom))
         linked-players (filter linked-player? players-on-team)
         link-groups (group-by :link-id linked-players)]
-
-    ; (timbre/info "updating team:" team)
-    ; (timbre/info "players:" players-on-team)
-    ; (timbre/info "link groups:" link-groups)
-    ; (timbre/info "-------------------------------------")
-
     ;; build link boxes
     (doseq [[link-id players] link-groups]
       (when-not (get link-groups-in-dom link-id)
@@ -612,30 +630,14 @@
       (when-not (contains? unlinked-player-ids-in-dom (:id p))
         (dom-util/append-html! team-id (html (PlayerBox p)))))))
 
-; (defn update-players-in-all-players-column!
-;   "Updates the DOM inside of the All Players column."
-;   [players]
-;   (let []))
-;     ;; FIXME: we need to add and remove solo players from the All Players column
-;     ;; FIXME: we need to add and remove linked players from the All Players column
-
 (defn update-players!
   [new-state]
   (let [all-players (:players new-state)
-        players-in-all-players-column (get-players-in-dom-element "allPlayersList")
-        player-ids-in-all-players-column (set (map :id players-in-all-players-column))
-        players-not-on-a-team (filter unsorted-player? (vals all-players))
         teams (vals (:teams new-state))
         players-in-link-box (filter :inside-link-box? (vals all-players))
         sorted-linked-players (sort compare-players players-in-link-box)
         players-in-unlink-box (filter :inside-unlink-box? (vals all-players))]
-    ;; FIXME: this is not working correctly with linked players
-    ;; fill the "All Players" column
-    (doseq [player players-not-on-a-team]
-      (when-not (contains? player-ids-in-all-players-column (:id player))
-        (dom-util/append-html! "allPlayersList" (html (PlayerBox player)))))
-
-    ;; FIXME: remove players from "All Players" column
+    (update-players-in-all-players-column! all-players)
 
     ;; update players in LinkBox
     (if (empty? players-in-link-box)
@@ -650,7 +652,7 @@
       (let [team-id (:team-id team)
             players-on-team-in-memory (filter #(= team-id (:team-id %))
                                               (vals all-players))]
-        (update-players-in-team-column players-on-team-in-memory team)))))
+        (update-players-in-team-column! players-on-team-in-memory team)))))
 
 (defn update-teams-and-players
   [_ _ _old-state new-state]
