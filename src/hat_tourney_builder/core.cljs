@@ -4,10 +4,12 @@
     [clojure.string :as str]
     [goog.functions :as gfunctions]
     [goog.labs.format.csv :as csv]
+    [hat-tourney-builder.html :as html]
     [hat-tourney-builder.util.base58 :refer [random-base58]]
     [hat-tourney-builder.util.dom :as dom-util :refer [add-event! get-element query-select-all set-inner-html!]]
     [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
-    [hiccups.runtime :as hiccups]
+    [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id? looks-like-a-player-id? looks-like-a-team-id? female? male?]]
+    ; [hiccups.runtime :as hiccups]
     [oops.core :refer [oget oset!]]
     [taoensso.timbre :as timbre])
   (:require-macros
@@ -15,32 +17,7 @@
 
 (declare
   init-sortable-list!
-  InputPlayersCSV
   random-player-id)
-
-;; -----------------------------------------------------------------------------
-;; Predicates
-
-(defn looks-like-a-link-id?
-  [id]
-  (and (string? id)
-       (str/starts-with? id "link-")))
-
-(defn looks-like-a-player-id?
-  [id]
-  (and (string? id)
-       (str/starts-with? id "plyr-")))
-
-(defn looks-like-a-team-id?
-  [id]
-  (and (string? id)
-       (str/starts-with? id "team-")))
-
-(defn male? [player]
-  (= (:sex player) "male"))
-
-(defn female? [player]
-  (= (:sex player) "female"))
 
 ;; -----------------------------------------------------------------------------
 ;; Misc / Sort Me
@@ -116,18 +93,6 @@
      :players {}
      :teams {}}))
 
-(defn PlayerBox
-  [{:keys [id name sex rank]}]
-  [:div {:key id
-         :id id
-         :class (str "player-box "
-                     (case sex
-                       "male" "sex-male"
-                       "female" "sex-female"
-                       ;; TODO: warn here
-                       nil))}
-    name])
-
 (defn players->summary
   [players]
   {:num-males (count (filter male? players))
@@ -137,134 +102,6 @@
                    0
                    (/ (reduce + 0 (map :strength players))
                       (count players)))})
-
-(defn format-strength-number
-  [n]
-  (-> (.toFixed n 2)
-    (.replace #"\.00$" "")
-    (.replace #"0$" "")))
-
-(defn TeamSummary
-  [{:keys [avg-strength num-females num-males total]}]
-  [:table
-   [:tbody
-    [:tr
-     [:td "Total"]
-     [:td total]]
-    [:tr
-     [:td "Females"]
-     [:td num-females]]
-    [:tr
-     [:td "Males"]
-     [:td num-males]]
-    [:tr
-     [:td "Avg Strength"]
-     [:td (format-strength-number avg-strength)]]]])
-
-; (defn SingleColumn
-;   [{:keys [all-players-column? players team-column? team-id title]}]
-;   (reagent/create-class
-;     {:display-name "SingleColumn"
-;      :component-did-mount
-;      (fn [_this]
-;        (when all-players-column?
-;          (init-sortable-list! team-id
-;                               {:on-add on-add-element-to-all-players-column}))
-;        (when team-column?
-;          (init-sortable-list! team-id
-;                               {:on-add (partial on-add-element-to-team-column team-id)})))
-
-;      :reagent-render
-;      (fn [{:keys [players team-id title]}]
-;        (let [players2 (or players
-;                          @(rf/subscribe [::players-on-team team-id]))]
-;          [:div.col-wrapper-outer
-;            [:h2 title]
-;            [:div {:id (str team-id "-summary")}]
-;            [:div {:id team-id
-;                   :class "team-column col-wrapper-inner"}
-;              (doall (map PlayerBox players2))]]))}))
-
-(defn SingleColumn
-  [{:keys [all-players-column? players team-column? team-id title]}]
-  [:div.col-wrapper-outer
-    [:h2 title]
-    [:div {:id (str team-id "-summary")}]
-    [:div {:id team-id
-           :class "team-column col-wrapper-inner"}
-      (doall (map PlayerBox players))]])
-
-; (defn Columns []
-;   (let [unteamed-players @(rf/subscribe [::unteamed-players])
-;         sorted-teams @(rf/subscribe [::sorted-teams])]
-;     [:div#columnsContainer.columns-wrapper
-;      [SingleColumn {:team-id "allPlayersList"
-;                     :title "All Players"
-;                     :players unteamed-players
-;                     :all-players-column? true}]
-;      (for [team sorted-teams]
-;        ^{:key (:team-id team)} [SingleColumn (assoc team :team-column? true)])]))
-
-(defn Columns []
-  [:div#columnsContainer.columns-wrapper
-   (SingleColumn {:team-id "allPlayersList"
-                  :title "All Players"
-                  :players [] ; unteamed-players
-                  :all-players-column? true})])
-   ; (for [team sorted-teams]
-   ;   ^{:key (:team-id team)} [SingleColumn (assoc team :team-column? true)])])
-
-(defn LinkBoxes []
-  [:div {:style "display: flex; flex-direction: row"}
-   [:div {:style "margin-right: 1em"}
-     [:h2 "Link Box"]
-     [:div#linkBox]]
-   [:div
-     [:h2 "Unlink Box"]
-     [:div#unlinkBox]]])
-
-(defn LinkedPlayersBox [players]
-  (let [link-ids (map :link-id players)
-        link-ids-set (set link-ids)]
-    ;; sanity-check that all the linked players are in the same link-group
-    (assert (looks-like-a-link-id? (first link-ids)))
-    (assert (= 1 (count link-ids-set)))
-    [:div.linked-players-box
-      {:id (first link-ids-set)}
-      (map PlayerBox players)]))
-
-; (defn click-add-team-btn2 [_js-evt]
-;   (rf/dispatch [::add-new-team]))
-
-(defn DragAndDropColumns []
-  [:div
-   ; [:button#addTeamBtn {:on-click click-add-team-btn2} "Add Team"]
-   [:button#addTeamBtn "Add Team"]
-   ; [:button#removeColumnBtn "Remove Column"]
-   (Columns)
-   (LinkBoxes)])
-
-(def example-csv-input-str
-  (str "John,m,6\n"
-       "Jane,f,8\n"
-       "Chris,m,7\n"
-       "Stephen,m,5\n"
-       "Christi,f,7\n"
-       "Jake,m,6\n"
-       "Jenn,f,4\n"
-       "Roger,m,4\n"))
-
-(defn HatTourneyBuilder []
-  [:div
-   [:h1 "Hat Tourney Builder"]
-   [:hr]
-   [:button#playersInputBtn "Players Input"]
-   [:button#teamsSortingBtn "Teams Sorting"]
-   [:br] [:br]
-   [:div#inputPlayersContainer {:style "display: none;"}
-    (InputPlayersCSV)]
-   [:div#dragAndDropColumnsContainer {:style "display: none;"}
-    (DragAndDropColumns)]])
 
 (defn get-link-ids-in-dom-element
   "returns a collection of all link ids within a DOM element"
@@ -364,11 +201,21 @@
     (swap! *state update :players merge unlinked-players-map)
     (timbre/info "Unlinked" (count players) "players:" players)))
 
-(defn update-team-summary! [team-id]
-  (let [players (get-players-in-dom-element team-id)
+(defn update-team-summary! [team-id all-players]
+  (let [players (get-players-in-dom-element team-id all-players)
         summary-id (str team-id "-summary")
-        summary (players->summary players)]
-    (set-inner-html! summary-id (html (TeamSummary summary)))))
+        summary-el (get-element summary-id)]
+    (if-not summary-el
+      (timbre/error "Unable to find Team Summary DOM element:" summary-id)
+      (let [summary (players->summary players)]
+        (set-inner-html! summary-el (html (html/TeamSummary summary)))))))
+
+(defn update-team-summaries!
+  [_ _ _old-state new-state]
+  (let [teams (:teams new-state)
+        all-players (:players new-state)]
+    (doseq [team-id (keys teams)]
+      (update-team-summary! team-id all-players))))
 
 (defn parse-gender-str [s1]
   (let [s2 (some-> s1 str str/trim str/lower-case)]
@@ -382,24 +229,6 @@
     (if (js/isNaN s2)
       nil
       s2)))
-
-(defn PlayerRow [{:keys [id name sex strength]}]
-  [:tr {:key id}
-    [:td name]
-    [:td sex]
-    [:td strength]])
-
-; (defn PlayersTable
-;   []
-;   (let [players @(rf/subscribe [::parsed-csv-players])]
-;     [:table
-;       [:thead
-;         [:tr
-;           [:th "Name"]
-;           [:th "Gender"]
-;           [:th "Strength"]]]
-;       [:tbody
-;         (map PlayerRow players)]]))
 
 (defn valid-player-row? [row]
   (and (vector? row)
@@ -536,15 +365,13 @@
           (js/console.log (oget js-evt "item"))
           nil))))
 
-;; FIXME: remove "update-team-summary!", move to atom-watcher
 (defn init-single-team-sortable! [team-id]
   (init-sortable-list!
     team-id
     {:on-add (fn [js-evt]
-               (add-element-to-team-column js-evt team-id)
-               (update-team-summary! team-id))
-     :on-remove (fn [js-evt]
-                  (update-team-summary! team-id))}))
+               (add-element-to-team-column js-evt team-id))}))
+     ; :on-remove (fn [js-evt]
+     ;              (update-team-summary! team-id))}))
 
 (defn get-team-ids-from-dom
   "returns a set of the team-ids currently in the DOM"
@@ -570,7 +397,7 @@
     (doseq [team (vals teams-that-need-to-be-added)]
       ;; add the Column html
       (dom-util/append-html! "columnsContainer"
-                             (html (SingleColumn team)))
+                             (html (html/SingleColumn team)))
       ;; init SortableJS on the new Column
       (init-single-team-sortable! (:team-id team)))))
 
@@ -602,12 +429,12 @@
     ;; build link boxes
     (doseq [[link-id players] link-groups]
       (when-not (get link-groups-in-dom link-id)
-        (dom-util/append-html! "allPlayersList" (html (LinkedPlayersBox (sort compare-players players))))))
+        (dom-util/append-html! "allPlayersList" (html (html/LinkedPlayersBox (sort compare-players players))))))
 
     ;; build solo players
     (doseq [p unlinked-players]
       (when-not (contains? unlinked-player-ids-in-dom (:id p))
-        (dom-util/append-html! "allPlayersList" (html (PlayerBox p)))))))
+        (dom-util/append-html! "allPlayersList" (html (html/PlayerBox p)))))))
 
 ;; NOTE: update-players-in-team-column! and update-players-in-all-players-column! functions could be combined
 (defn update-players-in-team-column!
@@ -623,12 +450,12 @@
     ;; build link boxes
     (doseq [[link-id players] link-groups]
       (when-not (get link-groups-in-dom link-id)
-        (dom-util/append-html! team-id (html (LinkedPlayersBox (sort compare-players players))))))
+        (dom-util/append-html! team-id (html (html/LinkedPlayersBox (sort compare-players players))))))
 
     ;; build solo players
     (doseq [p unlinked-players]
       (when-not (contains? unlinked-player-ids-in-dom (:id p))
-        (dom-util/append-html! team-id (html (PlayerBox p)))))))
+        (dom-util/append-html! team-id (html (html/PlayerBox p)))))))
 
 (defn update-players!
   [new-state]
@@ -642,10 +469,10 @@
     ;; update players in LinkBox
     (if (empty? players-in-link-box)
       (set-inner-html! "linkBox" "")
-      (set-inner-html! "linkBox" (html (LinkedPlayersBox sorted-linked-players))))
+      (set-inner-html! "linkBox" (html (html/LinkedPlayersBox sorted-linked-players))))
 
     ;; update players in UnlinkBox
-    (set-inner-html! "unlinkBox" (html (map PlayerBox players-in-unlink-box)))
+    (set-inner-html! "unlinkBox" (html (map html/PlayerBox players-in-unlink-box)))
 
     ;; update players in Team Columns
     (doseq [team teams]
@@ -704,28 +531,6 @@
       (init-sortable-list! "unlinkBox" {:on-add on-add-unlink-box}))))
 
 ;; -----------------------------------------------------------------------------
-;; Views
-
-(defn InputPlayersCSV []
-  [:div
-   [:h1 "Input Players"]
-   [:hr]
-   [:button#nextStepBtn "Go to next step"]
-   [:br] [:br]
-   [:div {:style "display: flex; flex-direction: row;"}
-    [:div {:style "flex 1; padding: 8px 16px"}
-     [:h4 "Enter as CSV: Name, Sex, Strength"]
-     [:p "One player per row. Separate with commas: Name, Sex, Strength"]
-     [:textarea#inputPlayersTextarea
-       {:style "width: 100%; min-height: 400px"}
-       example-csv-input-str]]
-    [:div {:style "flex: 1; padding: 8px 16px"}
-     [:h4 "Parsed Players"]
-     [:div#parsedPlayersTable
-      ; [PlayersTable]
-      "FIXME: players table"]]]])
-
-;; -----------------------------------------------------------------------------
 ;; Init
 
 (defn refresh!
@@ -744,11 +549,12 @@
         (timbre/info "Loaded existing state from localStorage")
         (reset! *state state-from-localstorage))
 
-      (add-watch *state :save-to-ls on-change-state-store-ls)
-      (add-watch *state :update-active-tab update-active-tab)
-      (add-watch *state :update-teams-and-players update-teams-and-players)
+      (add-watch *state ::save-to-ls on-change-state-store-ls)
+      (add-watch *state ::update-active-tab update-active-tab)
+      (add-watch *state ::update-teams-and-players update-teams-and-players)
+      (add-watch *state ::update-team-summaries update-team-summaries!)
 
-      (set-inner-html! "appContainer" (html (HatTourneyBuilder)))
+      (set-inner-html! "appContainer" (html (html/HatTourneyBuilder)))
       (add-dom-events!)
       (init-sortablejs!)
 
