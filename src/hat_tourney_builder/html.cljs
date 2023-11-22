@@ -169,7 +169,6 @@
 
 (defn DragAndDropColumns []
   [:div
-   ; [:button#addTeamBtn {:on-click click-add-team-btn2} "Add Team"]
    [:button#addTeamBtn "Add Team"]
    ; [:button#removeColumnBtn "Remove Column"]
    (Columns)
@@ -181,8 +180,14 @@
    [:hr]
    [:button#playersInputBtn "Players Input"]
    [:button#teamsSortingBtn "Teams Sorting"]
+   [:button#exportTabBtn "Data Export"]
    [:br] [:br]
    [:div#inputPlayersContainer {:style "display: none;"}
     (InputPlayersCSV)]
    [:div#dragAndDropColumnsContainer {:style "display: none;"}
-    (DragAndDropColumns)]])
+    (DragAndDropColumns)]
+   [:div#exportContainer {:style "display: none;"}
+    [:h2 "Teams and Players"]
+    [:textarea#teamsAndPlayersTextarea {:style "height: 800px; width: 600px;"}]
+    [:h2 "Raw EDN"]
+    [:textarea#exportEDNTextarea {:style "height: 800px; width: 600px;"}]]])

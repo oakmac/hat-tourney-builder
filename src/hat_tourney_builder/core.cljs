@@ -9,18 +9,13 @@
     [hat-tourney-builder.util.dom :as dom-util :refer [add-event! get-element query-select-all set-inner-html!]]
     [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
     [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id? looks-like-a-player-id? looks-like-a-team-id? female? male?]]
-    ; [hiccups.runtime :as hiccups]
-    [oops.core :refer [oget oset!]]
+    [oops.core :refer [oget]]
     [taoensso.timbre :as timbre])
   (:require-macros
     [hiccups.core :as hiccups :refer [html]]))
 
-(declare
-  init-sortable-list!
-  random-player-id)
-
-;; -----------------------------------------------------------------------------
-;; Misc / Sort Me
+;; FIXME: when we remove a team, we need to automatically move all of the players on that team
+;; to unteamed
 
 (defn random-link-id []
   (str "link-" (random-base58 10)))
@@ -78,12 +73,19 @@
   (let [new-tab (:active-tab new-state)]
     (case new-tab
       "PLAYERS_INPUT_TAB"
-      (do (dom-util/hide-el! "dragAndDropColumnsContainer")
-          (dom-util/show-el! "inputPlayersContainer"))
+      (do (dom-util/show-el! "inputPlayersContainer")
+          (dom-util/hide-el! "dragAndDropColumnsContainer")
+          (dom-util/hide-el! "exportContainer"))
 
       "TEAM_COLUMNS_TAB"
       (do (dom-util/hide-el! "inputPlayersContainer")
-          (dom-util/show-el! "dragAndDropColumnsContainer"))
+          (dom-util/show-el! "dragAndDropColumnsContainer")
+          (dom-util/hide-el! "exportContainer"))
+
+      "EXPORT_TAB"
+      (do (dom-util/hide-el! "inputPlayersContainer")
+          (dom-util/hide-el! "dragAndDropColumnsContainer")
+          (dom-util/show-el! "exportContainer"))
 
       (timbre/warn "Unrecogznied :active-tab value:" new-tab))))
 
@@ -106,6 +108,7 @@
 (defn get-link-ids-in-dom-element
   "returns a collection of all link ids within a DOM element"
   [el-id]
+  {:pre [(string? el-id)]}
   (let [selector (str "#" el-id " .linked-players-box")
         els (query-select-all selector)
         ids (atom [])]
@@ -118,6 +121,7 @@
 (defn get-player-ids-in-dom-element
   "returns a collection of all player ids within a DOM element"
   [el-id]
+  {:pre [(string? el-id)]}
   (let [selector (str "#" el-id " .player-box")
         els (query-select-all selector)
         ids (atom [])]
@@ -216,6 +220,26 @@
         all-players (:players new-state)]
     (doseq [team-id (keys teams)]
       (update-team-summary! team-id all-players))))
+
+(defn build-teams-and-players-str [{:keys [players teams]}]
+  (let [sorted-teams (sort-by :title (vals teams))
+        players-by-team (group-by :team-id (vals players))
+        team-strs (map
+                    (fn [{:keys [team-id title]}]
+                      (let [players-on-team (get players-by-team team-id)]
+                        (str "=== " title "\n"
+                             (str/join "\n" (->> players-on-team
+                                              (map :name)
+                                              sort)))))
+                    sorted-teams)]
+    (str/join "\n\n" team-strs)))
+
+(defn update-data-export!
+  [_ _ _old-state {:keys [active-tab] :as new-state}]
+  ;; only update the Export fields if we are on the Export Tab
+  (when (= active-tab "EXPORT_TAB")
+    (set-inner-html! "teamsAndPlayersTextarea" (build-teams-and-players-str new-state))
+    (set-inner-html! "exportEDNTextarea" (pr-str new-state))))
 
 (defn parse-gender-str [s1]
   (let [s2 (some-> s1 str str/trim str/lower-case)]
@@ -339,8 +363,9 @@
                           linked-players)
         linked-players-map (zipmap (map :id linked-players2) linked-players2)]
     (swap! *state update :players merge linked-players-map)
-    (timbre/info "Added linked player group to team:" team)
-    (timbre/info "Linked players:" linked-players)))
+    ;; TODO: make this easier to read using format
+    (timbre/info (str "Added linked players to team " (:title team) " (" (:team-id team) "): "
+                      (str/join "," (map (fn [p] (str (:name p) " [" (:id p) "]")) linked-players))))))
 
 (defn add-element-to-team-column
   "this event fires when a DOM element is added to a Team column"
@@ -481,6 +506,7 @@
                                               (vals all-players))]
         (update-players-in-team-column! players-on-team-in-memory team)))))
 
+
 (defn update-teams-and-players
   [_ _ _old-state new-state]
   ;; NOTE: order matters here. Team columns need to be updated before players
@@ -491,7 +517,6 @@
   (let [num-teams (-> @*state :teams count)
         new-team-id (random-team-id)
         new-team {:team-id new-team-id
-                  :players []
                   :title (str "Team " (inc num-teams))}]
     ;; store new team in state
     (swap! *state assoc-in [:teams new-team-id] new-team)))
@@ -511,6 +536,9 @@
 (defn click-teams-sorting-btn [_js-evt]
   (swap! *state assoc :active-tab "TEAM_COLUMNS_TAB"))
 
+(defn click-export-tab-btn [_js-evt]
+  (swap! *state assoc :active-tab "EXPORT_TAB"))
+
 (def add-dom-events!
   (gfunctions/once
     (fn []
@@ -520,6 +548,7 @@
 
       (add-event! "playersInputBtn" "click" click-players-input-btn)
       (add-event! "teamsSortingBtn" "click" click-teams-sorting-btn)
+      (add-event! "exportTabBtn" "click" click-export-tab-btn)
 
       (add-event! "addTeamBtn" "click" click-add-team-btn))))
 
@@ -553,6 +582,7 @@
       (add-watch *state ::update-active-tab update-active-tab)
       (add-watch *state ::update-teams-and-players update-teams-and-players)
       (add-watch *state ::update-team-summaries update-team-summaries!)
+      (add-watch *state ::update-data-export update-data-export!)
 
       (set-inner-html! "appContainer" (html (html/HatTourneyBuilder)))
       (add-dom-events!)
