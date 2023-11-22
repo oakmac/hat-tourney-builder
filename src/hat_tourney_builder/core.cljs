@@ -9,13 +9,16 @@
     [hat-tourney-builder.util.dom :as dom-util :refer [add-event! get-element query-select-all set-inner-html!]]
     [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
     [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id? looks-like-a-player-id? looks-like-a-team-id? female? male?]]
-    [oops.core :refer [oget]]
+    [oops.core :refer [ocall oget oset!]]
     [taoensso.timbre :as timbre])
   (:require-macros
     [hiccups.core :as hiccups :refer [html]]))
 
 ;; FIXME: when we remove a team, we need to automatically move all of the players on that team
 ;; to unteamed
+
+(defn- reload-page! []
+  (oset! js/window "location.href" (oget js/window "location.href")))
 
 (defn random-link-id []
   (str "link-" (random-base58 10)))
@@ -260,31 +263,28 @@
        (every? string? row)))
 
 (defn get-players-from-csv-input
+  "Returns a Vector of players from CSV input.
+  NOTE: the players will not have ids and will be in the order they are in on the CSV input"
   ([]
    (-> (get-element "inputPlayersTextarea")
        (oget "value")
        get-players-from-csv-input))
   ([csv-txt]
-   (let [;; TODO: wrap this parse in try/catch
-         js-parsed-csv (try
+   (let [js-parsed-csv (try
                          (csv/parse csv-txt)
-                         (catch js/Error _e []))
-         clj-parsed (js->clj js-parsed-csv)
-         clj-parsed2 (filter valid-player-row? clj-parsed)
-         players-vec (map
-                       (fn [row]
-                         {:id (random-player-id)
-                          :name (str/trim (nth row 0 nil))
-                          :sex (parse-gender-str (nth row 1 nil))
-                          :strength (parse-strength-num (nth row 2 nil))})
-                       clj-parsed2)]
-     players-vec)))
-
-(defn on-change-input-players-csv
-  [js-evt]
-  (let [txt (oget js-evt "currentTarget.value")
-        players (get-players-from-csv-input txt)]
-    (swap! *state assoc :players players)))
+                         (catch js/Error _e nil))]
+     (if-not js-parsed-csv
+       (timbre/error "Failed to parse CSV input.")
+       (let [clj-parsed (js->clj js-parsed-csv)
+             clj-parsed2 (filter valid-player-row? clj-parsed)
+             players-vec (map
+                           (fn [row]
+                             {; :id (random-player-id)
+                              :name (str/trim (nth row 0 nil))
+                              :sex (parse-gender-str (nth row 1 nil))
+                              :strength (parse-strength-num (nth row 2 nil))})
+                           clj-parsed2)]
+         players-vec)))))
 
 (defn init-sortable-list!
   [id {:keys [on-add on-remove]}]
@@ -302,9 +302,12 @@
             ;               (dom-util/set-style-prop! orig-el "background" "red")
             ;               (dom-util/set-style-prop! clone-el "border" "5px solid green"))))))
 
-(defn add-random-id-to-player
+(defn add-random-id-to-player-if-needed
+  "Adds a random id to a player if there is not already one"
   [p]
-  (assoc p :id (random-player-id)))
+  (if (looks-like-a-player-id? (:id p))
+    p
+    (assoc p :id (random-player-id))))
 
 (defn add-to-all-players-list
   "fires when an element is added to the All Players list"
@@ -395,8 +398,6 @@
     team-id
     {:on-add (fn [js-evt]
                (add-element-to-team-column js-evt team-id))}))
-     ; :on-remove (fn [js-evt]
-     ;              (update-team-summary! team-id))}))
 
 (defn get-team-ids-from-dom
   "returns a set of the team-ids currently in the DOM"
@@ -506,7 +507,6 @@
                                               (vals all-players))]
         (update-players-in-team-column! players-on-team-in-memory team)))))
 
-
 (defn update-teams-and-players
   [_ _ _old-state new-state]
   ;; NOTE: order matters here. Team columns need to be updated before players
@@ -521,14 +521,27 @@
     ;; store new team in state
     (swap! *state assoc-in [:teams new-team-id] new-team)))
 
-(defn on-click-next-step-button [_js-evt]
-  ;; get players from CSV input
-  (let [players-vec (get-players-from-csv-input)
-        players-with-ids (map add-random-id-to-player players-vec)
-        players-map (zipmap (map :id players-with-ids) players-with-ids)]
+(defn click-parse-csv-btn [_js-evt]
+  (let [csv-players-vec (get-players-from-csv-input)
+        csv-players-set (set csv-players-vec)
+        current-state @*state
+        current-players (vals (:players current-state))
+        current-players-without-ids-set (->> current-players
+                                          (map (fn [p] (select-keys p [:name :sex :strength])))
+                                          set)
+        new-players-from-csv (set/difference csv-players-set current-players-without-ids-set)
+        new-players-with-ids (map add-random-id-to-player-if-needed new-players-from-csv)
+        new-players-map (zipmap (map :id new-players-with-ids) new-players-with-ids)
+        combined-players-map (merge (:players current-state) new-players-map)]
+    ; (timbre/info "current:" current-players)
+    ; (timbre/info "csv:" csv-players-vec)
+    ; (timbre/info "combined:" combined-players-map)
+    (swap! *state assoc :players combined-players-map)))
 
-    (swap! *state assoc :players players-map))
-  (swap! *state assoc :active-tab "TEAM_COLUMNS_TAB"))
+(defn update-players-table!
+  [_ _ _old-state {:keys [active-tab players] :as _new-state}]
+  (when (= active-tab "PLAYERS_INPUT_TAB")
+    (set-inner-html! "currentPlayersTable" (html (html/PlayersTable (->> players vals (sort-by :name)))))))
 
 (defn click-players-input-btn [_js-evt]
   (swap! *state assoc :active-tab "PLAYERS_INPUT_TAB"))
@@ -539,12 +552,23 @@
 (defn click-export-tab-btn [_js-evt]
   (swap! *state assoc :active-tab "EXPORT_TAB"))
 
+(defn- click-destroy-players-btn [_js-evt]
+  (let [txt (ocall js/window "prompt" "Type \"destroy\" if you want to permanently delete all Players")]
+    (if (= "destroy" txt)
+      (do (swap! *state assoc :players {})
+          ;; HACK: hard reload the page in order to clear the DOM of old players
+          (js/setTimeout
+            (fn []
+              (reload-page!))
+            10))
+      (timbre/info "did NOT destroy all players"))))
+
 (def add-dom-events!
   (gfunctions/once
     (fn []
       ;; player CSV input
-      (add-event! "nextStepBtn" "click" on-click-next-step-button)
-      (add-event! "inputPlayersTextarea" "keyup" on-change-input-players-csv)
+      (add-event! "parseCSVBtn" "click" click-parse-csv-btn)
+      (add-event! "destroyAllPlayersBtn" "click" click-destroy-players-btn)
 
       (add-event! "playersInputBtn" "click" click-players-input-btn)
       (add-event! "teamsSortingBtn" "click" click-teams-sorting-btn)
@@ -580,6 +604,7 @@
 
       (add-watch *state ::save-to-ls on-change-state-store-ls)
       (add-watch *state ::update-active-tab update-active-tab)
+      (add-watch *state ::update-players-table update-players-table!)
       (add-watch *state ::update-teams-and-players update-teams-and-players)
       (add-watch *state ::update-team-summaries update-team-summaries!)
       (add-watch *state ::update-data-export update-data-export!)

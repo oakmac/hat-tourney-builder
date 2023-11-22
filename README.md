@@ -4,14 +4,15 @@ UI tool for sorting teams for an Ultimate hat tournament.
 
 ## TODO
 
-- ability to refresh the page and not lose data
-- sort order on teams should persist on page refresh
-- Link groups should not have only one player
-- search All Players list
-- ability to edit team name
-- ability to delete team column
-- export player / team list as CSV
-- styling
+- [ ] put player strength display on PlayerBox
+- [ ] export player / team list as CSV
+- [ ] styling
+- [ ] sort order on teams should persist on page refresh
+- [ ] Link groups should not have only one player
+- [ ] search All Players list
+- [ ] ability to edit team name
+- [ ] ability to delete team column
+- [x] ability to refresh the page and not lose data
 - package Sortable with the CLJS?
 - https://github.com/eanway/SortingHat
 

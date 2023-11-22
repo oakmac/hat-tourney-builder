@@ -121,22 +121,24 @@
       (map PlayerBox players)]))
 
 (defn PlayerRow [{:keys [id name sex strength]}]
-  [:tr {:key id}
+  [:tr {:data-player-id id}
     [:td name]
     [:td sex]
-    [:td strength]])
+    [:td strength]
+    [:td id]
+    [:td [:button {:data-player-id id} "remove"]]])
 
-; (defn PlayersTable
-;   []
-;   (let [players @(rf/subscribe [::parsed-csv-players])]
-;     [:table
-;       [:thead
-;         [:tr
-;           [:th "Name"]
-;           [:th "Gender"]
-;           [:th "Strength"]]]
-;       [:tbody
-;         (map PlayerRow players)]]))
+(defn PlayersTable
+  [sorted-players]
+  [:table
+    [:thead
+      [:tr
+        [:th "Name"]
+        [:th "Gender"]
+        [:th "Strength"]
+        [:th "id"]]]
+    [:tbody
+      (map PlayerRow sorted-players)]])
 
 (def example-csv-input-str
   (str "John,m,6\n"
@@ -152,7 +154,7 @@
   [:div
    [:h1 "Input Players"]
    [:hr]
-   [:button#nextStepBtn "Go to next step"]
+   [:button#parseCSVBtn "Parse CSV"]
    [:br] [:br]
    [:div {:style "display: flex; flex-direction: row;"}
     [:div {:style "flex 1; padding: 8px 16px"}
@@ -162,10 +164,9 @@
        {:style "width: 100%; min-height: 400px"}
        example-csv-input-str]]
     [:div {:style "flex: 1; padding: 8px 16px"}
-     [:h4 "Parsed Players"]
-     [:div#parsedPlayersTable
-      ; [PlayersTable]
-      "FIXME: players table"]]]])
+     [:button#destroyAllPlayersBtn "Destroy All Players"]
+     [:h4 "Current Players"]
+     [:div#currentPlayersTable]]]])
 
 (defn DragAndDropColumns []
   [:div
