@@ -1,6 +1,5 @@
 (ns hat-tourney-builder.html
   (:require
-    [clojure.string :as str]
     [hiccups.runtime :as hiccups]
     [taoensso.timbre :as timbre]
     [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id? looks-like-a-player-id? looks-like-a-team-id?]])
@@ -48,30 +47,6 @@
      [:td "Avg Strength"]
      [:td (format-strength-number avg-strength)]]]])
 
-; (defn SingleColumn
-;   [{:keys [all-players-column? players team-column? team-id title]}]
-;   (reagent/create-class
-;     {:display-name "SingleColumn"
-;      :component-did-mount
-;      (fn [_this]
-;        (when all-players-column?
-;          (init-sortable-list! team-id
-;                               {:on-add on-add-element-to-all-players-column}))
-;        (when team-column?
-;          (init-sortable-list! team-id
-;                               {:on-add (partial on-add-element-to-team-column team-id)})))
-
-;      :reagent-render
-;      (fn [{:keys [players team-id title]}]
-;        (let [players2 (or players
-;                          @(rf/subscribe [::players-on-team team-id]))]
-;          [:div.col-wrapper-outer
-;            [:h2 title]
-;            [:div {:id (str team-id "-summary")}]
-;            [:div {:id team-id
-;                   :class "team-column col-wrapper-inner"}
-;              (doall (map PlayerBox players2))]]))}))
-
 (defn SingleColumn
   [{:keys [all-players-column? players team-column? team-id title]}]
   [:div.col-wrapper-outer
@@ -81,25 +56,12 @@
            :class "team-column col-wrapper-inner"}
       (doall (map PlayerBox players))]])
 
-; (defn Columns []
-;   (let [unteamed-players @(rf/subscribe [::unteamed-players])
-;         sorted-teams @(rf/subscribe [::sorted-teams])]
-;     [:div#columnsContainer.columns-wrapper
-;      [SingleColumn {:team-id "allPlayersList"
-;                     :title "All Players"
-;                     :players unteamed-players
-;                     :all-players-column? true}]
-;      (for [team sorted-teams]
-;        ^{:key (:team-id team)} [SingleColumn (assoc team :team-column? true)])]))
-
 (defn Columns []
   [:div#columnsContainer.columns-wrapper
    (SingleColumn {:team-id "allPlayersList"
                   :title "All Players"
                   :players [] ; unteamed-players
                   :all-players-column? true})])
-   ; (for [team sorted-teams]
-   ;   ^{:key (:team-id team)} [SingleColumn (assoc team :team-column? true)])])
 
 (defn LinkBoxes []
   [:div {:style "display: flex; flex-direction: row"}
@@ -152,9 +114,7 @@
 
 (defn InputPlayersCSV []
   [:div
-   [:h1 "Input Players"]
-   [:hr]
-   [:button#parseCSVBtn "Parse CSV"]
+   [:button#parseCSVBtn.button.is-primary "Parse CSV"]
    [:br] [:br]
    [:div {:style "display: flex; flex-direction: row;"}
     [:div {:style "flex 1; padding: 8px 16px"}
@@ -164,7 +124,7 @@
        {:style "width: 100%; min-height: 400px"}
        example-csv-input-str]]
     [:div {:style "flex: 1; padding: 8px 16px"}
-     [:button#destroyAllPlayersBtn "Destroy All Players"]
+     [:button#destroyAllPlayersBtn.button.is-danger "Destroy All Players"]
      [:h4 "Current Players"]
      [:div#currentPlayersTable]]]])
 
@@ -175,14 +135,20 @@
    (Columns)
    (LinkBoxes)])
 
+(defn TopPageTabs []
+  [:div.tabs.is-boxed
+    [:ul#topPageTabsList
+      [:li#playersInputTabListElement
+        [:a#playersInputBtn {:href "#"} "Players Input"]]
+      [:li#teamsSortingTabListElement
+        [:a#teamsSortingBtn {:href "#"} "Teams Sorting"]]
+      [:li#exportPlayersTabListElement
+        [:a#exportTabBtn {:href "#"} "Data Export"]]]])
+
 (defn HatTourneyBuilder []
-  [:div
-   [:h1 "Hat Tourney Builder"]
-   [:hr]
-   [:button#playersInputBtn "Players Input"]
-   [:button#teamsSortingBtn "Teams Sorting"]
-   [:button#exportTabBtn "Data Export"]
-   [:br] [:br]
+  [:section.section
+   [:h1.title "Hat Tourney Builder"]
+   (TopPageTabs)
    [:div#inputPlayersContainer {:style "display: none;"}
     (InputPlayersCSV)]
    [:div#dragAndDropColumnsContainer {:style "display: none;"}

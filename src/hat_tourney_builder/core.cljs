@@ -70,25 +70,34 @@
   [_ _ _old-state new-state]
   (set-clj-to-localstorage! "project1" new-state))
 
-(defn update-active-tab
+(defn remove-is-active-from-all-tabs! []
+  (let [els (query-select-all "#topPageTabsList li")]
+    (.forEach els (fn [el]
+                    (dom-util/remove-class! el "is-active")))))
+
+(defn update-active-tab!
   "show / hide pages based on active-tab"
   [_ _ _old-state new-state]
   (let [new-tab (:active-tab new-state)]
+    (remove-is-active-from-all-tabs!)
     (case new-tab
       "PLAYERS_INPUT_TAB"
       (do (dom-util/show-el! "inputPlayersContainer")
           (dom-util/hide-el! "dragAndDropColumnsContainer")
-          (dom-util/hide-el! "exportContainer"))
+          (dom-util/hide-el! "exportContainer")
+          (dom-util/add-class! "playersInputTabListElement" "is-active"))
 
       "TEAM_COLUMNS_TAB"
       (do (dom-util/hide-el! "inputPlayersContainer")
           (dom-util/show-el! "dragAndDropColumnsContainer")
-          (dom-util/hide-el! "exportContainer"))
+          (dom-util/hide-el! "exportContainer")
+          (dom-util/add-class! "teamsSortingTabListElement" "is-active"))
 
       "EXPORT_TAB"
       (do (dom-util/hide-el! "inputPlayersContainer")
           (dom-util/hide-el! "dragAndDropColumnsContainer")
-          (dom-util/show-el! "exportContainer"))
+          (dom-util/show-el! "exportContainer")
+          (dom-util/add-class! "exportPlayersTabListElement" "is-active"))
 
       (timbre/warn "Unrecogznied :active-tab value:" new-tab))))
 
@@ -543,13 +552,16 @@
   (when (= active-tab "PLAYERS_INPUT_TAB")
     (set-inner-html! "currentPlayersTable" (html (html/PlayersTable (->> players vals (sort-by :name)))))))
 
-(defn click-players-input-btn [_js-evt]
+(defn click-players-input-btn [js-evt]
+  (ocall js-evt "preventDefault")
   (swap! *state assoc :active-tab "PLAYERS_INPUT_TAB"))
 
-(defn click-teams-sorting-btn [_js-evt]
+(defn click-teams-sorting-btn [js-evt]
+  (ocall js-evt "preventDefault")
   (swap! *state assoc :active-tab "TEAM_COLUMNS_TAB"))
 
-(defn click-export-tab-btn [_js-evt]
+(defn click-export-tab-btn [js-evt]
+  (ocall js-evt "preventDefault")
   (swap! *state assoc :active-tab "EXPORT_TAB"))
 
 (defn- click-destroy-players-btn [_js-evt]
@@ -603,7 +615,7 @@
         (reset! *state state-from-localstorage))
 
       (add-watch *state ::save-to-ls on-change-state-store-ls)
-      (add-watch *state ::update-active-tab update-active-tab)
+      (add-watch *state ::update-active-tab update-active-tab!)
       (add-watch *state ::update-players-table update-players-table!)
       (add-watch *state ::update-teams-and-players update-teams-and-players)
       (add-watch *state ::update-team-summaries update-team-summaries!)
