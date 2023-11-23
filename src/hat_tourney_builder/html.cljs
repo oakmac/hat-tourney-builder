@@ -139,12 +139,14 @@
 (defn TopPageTabs []
   [:div.tabs.is-boxed
     [:ul#topPageTabsList
-      [:li#playersInputTabListElement
-        [:a#playersInputBtn {:href "#"} "Players Input"]]
-      [:li#teamsSortingTabListElement
-        [:a#teamsSortingBtn {:href "#"} "Teams Sorting"]]
-      [:li#exportPlayersTabListElement
-        [:a#exportTabBtn {:href "#"} "Data Export"]]]])
+      [:li#PLAYERS_INPUT_TAB_LI
+        [:a#PLAYERS_INPUT_TAB {:href "#"} "Players Input"]]
+      [:li#LINK_PLAYERS_TAB_LI
+        [:a#LINK_PLAYERS_TAB {:href "#"} "Link Players"]]
+      [:li#TEAM_COLUMNS_TAB_LI
+        [:a#TEAM_COLUMNS_TAB {:href "#"} "Teams Sorting"]]
+      [:li#EXPORT_TAB_LI
+        [:a#EXPORT_TAB {:href "#"} "Data Export"]]]])
 
 (defn HatTourneyBuilder []
   [:section.section
@@ -152,6 +154,7 @@
    (TopPageTabs)
    [:div#inputPlayersContainer {:style "display: none;"}
     (InputPlayersCSV)]
+   [:div#linkPlayersContainer {:style "display: none;"}]
    [:div#dragAndDropColumnsContainer {:style "display: none;"}
     (DragAndDropColumns)]
    [:div#exportContainer {:style "display: none;"}

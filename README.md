@@ -4,6 +4,8 @@ UI tool for sorting teams for an Ultimate hat tournament.
 
 ## TODO
 
+- [ ] make a separate tab for linking players together
+- [ ] sort player columns by player strength
 - [ ] put player strength display on PlayerBox
 - [ ] export player / team list as CSV
 - [ ] styling

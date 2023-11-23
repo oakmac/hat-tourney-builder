@@ -40,32 +40,6 @@
       (not= a-sex b-sex) (compare a-sex b-sex)
       :else (compare a-name b-name))))
 
-(def all-players-example
-  [{:id (random-player-id)
-    :name "Chris Oakman"
-    :sex "male"
-    :strength 7}
-   {:id (random-player-id)
-    :name "Lauren Oakman"
-    :sex "female"
-    :strength 8}
-   {:id (random-player-id)
-    :name "Gillian Maleski"
-    :sex "female"
-    :strength 8}
-   {:id (random-player-id)
-    :name "David Waters"
-    :sex "male"
-    :strength 9}
-   {:id (random-player-id)
-    :name "Oliver Geser"
-    :sex "male"
-    :strength 8}
-   {:id (random-player-id)
-    :name "Sara Wise"
-    :sex "female"
-    :strength 8}])
-
 (defn on-change-state-store-ls
   [_ _ _old-state new-state]
   (set-clj-to-localstorage! "project1" new-state))
@@ -75,29 +49,34 @@
     (.forEach els (fn [el]
                     (dom-util/remove-class! el "is-active")))))
 
+(defn- hide-all-container-els! []
+  (dom-util/hide-el! "inputPlayersContainer")
+  (dom-util/hide-el! "linkPlayersContainer")
+  (dom-util/hide-el! "dragAndDropColumnsContainer")
+  (dom-util/hide-el! "exportContainer"))
+
 (defn update-active-tab!
-  "show / hide pages based on active-tab"
+  "show / hide page containers based on the active-tab"
   [_ _ _old-state new-state]
   (let [new-tab (:active-tab new-state)]
     (remove-is-active-from-all-tabs!)
+    (hide-all-container-els!)
     (case new-tab
       "PLAYERS_INPUT_TAB"
       (do (dom-util/show-el! "inputPlayersContainer")
-          (dom-util/hide-el! "dragAndDropColumnsContainer")
-          (dom-util/hide-el! "exportContainer")
-          (dom-util/add-class! "playersInputTabListElement" "is-active"))
+          (dom-util/add-class! "PLAYERS_INPUT_TAB_LI" "is-active"))
+
+      "LINK_PLAYERS_TAB"
+      (do ;; FIXME: show link players container here
+          (dom-util/add-class! "LINK_PLAYERS_TAB_LI" "is-active"))
 
       "TEAM_COLUMNS_TAB"
-      (do (dom-util/hide-el! "inputPlayersContainer")
-          (dom-util/show-el! "dragAndDropColumnsContainer")
-          (dom-util/hide-el! "exportContainer")
-          (dom-util/add-class! "teamsSortingTabListElement" "is-active"))
+      (do (dom-util/show-el! "dragAndDropColumnsContainer")
+          (dom-util/add-class! "TEAM_COLUMNS_TAB_LI" "is-active"))
 
       "EXPORT_TAB"
-      (do (dom-util/hide-el! "inputPlayersContainer")
-          (dom-util/hide-el! "dragAndDropColumnsContainer")
-          (dom-util/show-el! "exportContainer")
-          (dom-util/add-class! "exportPlayersTabListElement" "is-active"))
+      (do (dom-util/show-el! "exportContainer")
+          (dom-util/add-class! "EXPORT_TAB_LI" "is-active"))
 
       (timbre/warn "Unrecogznied :active-tab value:" new-tab))))
 
@@ -175,9 +154,6 @@
   "fires when a player has been added to the Link Box"
   [_js-evt]
   (let [players (get-players-in-dom-element "linkBox")
-        ; link-ids (map :link-id players)
-        ; player-ids (map :id players)
-
         link-id (or ;; find an existing link-id
                     (->> players
                       (map :link-id)
@@ -203,8 +179,7 @@
 (defn on-add-unlink-box
   "fires when an element is added to the unlink box"
   [js-evt]
-  (let [el-id (oget js-evt "item.id")
-        players (get-players-in-dom-element "unlinkBox")
+  (let [players (get-players-in-dom-element "unlinkBox")
         unlinked-players (map
                            (fn [p]
                              (-> p
@@ -288,8 +263,7 @@
              clj-parsed2 (filter valid-player-row? clj-parsed)
              players-vec (map
                            (fn [row]
-                             {; :id (random-player-id)
-                              :name (str/trim (nth row 0 nil))
+                             {:name (str/trim (nth row 0 nil))
                               :sex (parse-gender-str (nth row 1 nil))
                               :strength (parse-strength-num (nth row 2 nil))})
                            clj-parsed2)]
@@ -438,13 +412,6 @@
 
     ;; FIXME: remove teams from the DOM
 
-(defn unsorted-player?
-  "Is this player unsorted? ie: not on a team, not in the link or unlink box"
-  [p]
-  (and (not (:team-id p))
-       (not (:inside-link-box? p))
-       (not (:inside-unlink-box? p))))
-
 (defn update-players-in-all-players-column!
   "Updates the DOM inside of the All Players column."
   [all-players]
@@ -552,17 +519,18 @@
   (when (= active-tab "PLAYERS_INPUT_TAB")
     (set-inner-html! "currentPlayersTable" (html (html/PlayersTable (->> players vals (sort-by :name)))))))
 
-(defn click-players-input-btn [js-evt]
-  (ocall js-evt "preventDefault")
-  (swap! *state assoc :active-tab "PLAYERS_INPUT_TAB"))
+(def tab-ids
+  #{"PLAYERS_INPUT_TAB"
+    "LINK_PLAYERS_TAB"
+    "TEAM_COLUMNS_TAB"
+    "EXPORT_TAB"})
 
-(defn click-teams-sorting-btn [js-evt]
+(defn click-tab [js-evt]
   (ocall js-evt "preventDefault")
-  (swap! *state assoc :active-tab "TEAM_COLUMNS_TAB"))
-
-(defn click-export-tab-btn [js-evt]
-  (ocall js-evt "preventDefault")
-  (swap! *state assoc :active-tab "EXPORT_TAB"))
+  (let [tab-id (oget js-evt "target.id")]
+    (if (contains? tab-ids tab-id)
+      (swap! *state assoc :active-tab tab-id)
+      (timbre/error "Invalid tab-id:" tab-id))))
 
 (defn- click-destroy-players-btn [_js-evt]
   (let [txt (ocall js/window "prompt" "Type \"destroy\" if you want to permanently delete all Players")]
@@ -582,9 +550,10 @@
       (add-event! "parseCSVBtn" "click" click-parse-csv-btn)
       (add-event! "destroyAllPlayersBtn" "click" click-destroy-players-btn)
 
-      (add-event! "playersInputBtn" "click" click-players-input-btn)
-      (add-event! "teamsSortingBtn" "click" click-teams-sorting-btn)
-      (add-event! "exportTabBtn" "click" click-export-tab-btn)
+      (add-event! "PLAYERS_INPUT_TAB" "click" click-tab)
+      (add-event! "LINK_PLAYERS_TAB" "click" click-tab)
+      (add-event! "TEAM_COLUMNS_TAB" "click" click-tab)
+      (add-event! "EXPORT_TAB" "click" click-tab)
 
       (add-event! "addTeamBtn" "click" click-add-team-btn))))
 
