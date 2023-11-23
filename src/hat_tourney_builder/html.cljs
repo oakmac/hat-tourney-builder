@@ -11,9 +11,9 @@
 
 (defn- format-strength-number
   [n]
-  (-> (.toFixed n 2)
-    (.replace #"\.00$" "")
-    (.replace #"0$" "")))
+  (if (= 0 n)
+    "-"
+    (.toFixed n 1)))
 
 ;; -----------------------------------------------------------------------------
 ;; Public API
@@ -32,32 +32,32 @@
 
 (defn TeamSummary
   [{:keys [avg-strength num-females num-males total]}]
-  [:table
+  [:table.table.is-fullwidth.is-narrow.tbl-725ca
    [:tbody
     [:tr
      [:td "Total"]
-     [:td total]]
+     [:td.unit-2dd1a [:strong total]]]
     [:tr
      [:td "Females"]
-     [:td num-females]]
+     [:td.unit-2dd1a [:strong num-females]]]
     [:tr
      [:td "Males"]
-     [:td num-males]]
+     [:td.unit-2dd1a [:strong num-males]]]
     [:tr
      [:td "Avg Strength"]
-     [:td (format-strength-number avg-strength)]]]])
+     [:td.unit-2dd1a [:strong (format-strength-number avg-strength)]]]]])
 
 (defn SingleColumn
   [{:keys [all-players-column? players team-column? team-id title]}]
-  [:div.col-wrapper-outer
-    [:h2 title]
-    [:div {:id (str team-id "-summary")}]
+  [:div.column.column-87ea2
+    [:h4.title.is-4 {:style "margin-bottom: 1rem;"} title]
+    [:div.block {:id (str team-id "-summary")}]
     [:div {:id team-id
            :class "team-column col-wrapper-inner"}
       (doall (map PlayerBox players))]])
 
 (defn Columns []
-  [:div#columnsContainer.columns-wrapper
+  [:div#columnsContainer.columns
    (SingleColumn {:team-id "allPlayersList"
                   :title "All Players"
                   :players [] ; unteamed-players
@@ -130,7 +130,8 @@
 
 (defn DragAndDropColumns []
   [:div
-   [:button#addTeamBtn "Add Team"]
+   [:div.block
+     [:button#addTeamBtn.button.is-primary "Add Team"]]
    ; [:button#removeColumnBtn "Remove Column"]
    (Columns)
    (LinkBoxes)])
