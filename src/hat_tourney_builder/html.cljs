@@ -2,9 +2,9 @@
   (:require
     [hiccups.runtime :as hiccups]
     [taoensso.timbre :as timbre]
-    [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id? looks-like-a-player-id? looks-like-a-team-id?]])
+    [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id?]])
   (:require-macros
-    [hiccups.core :as hiccups :refer [html]]))
+    [hiccups.core :as hiccups]))
 
 ;; -----------------------------------------------------------------------------
 ;; Helpers
@@ -20,8 +20,7 @@
 
 (defn PlayerBox
   [{:keys [id name sex rank]}]
-  [:div {:key id
-         :id id
+  [:div {:id id
          :class (str "player-box "
                      (case sex
                        "male" "sex-male"

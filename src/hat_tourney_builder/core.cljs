@@ -178,7 +178,7 @@
 
 (defn on-add-unlink-box
   "fires when an element is added to the unlink box"
-  [js-evt]
+  [_js-evt]
   (let [players (get-players-in-dom-element "unlinkBox")
         unlinked-players (map
                            (fn [p]
@@ -567,6 +567,7 @@
 ;; -----------------------------------------------------------------------------
 ;; Init
 
+#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn refresh!
   "this function gets triggered after every shadow-cljs reload"
   []
@@ -578,23 +579,26 @@
 (def init!
   (gfunctions/once
     (fn []
-      (timbre/info "Initialized Tourney Hat Builder 😎")
-      (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
-        (timbre/info "Loaded existing state from localStorage")
-        (reset! *state state-from-localstorage))
+      (if-not app-container-el
+        (timbre/error "Could not find <div id=appContainer>. Goodbye!")
+        (do
+          (timbre/info "Initialized Tourney Hat Builder 😎")
+          (when-let [state-from-localstorage (read-clj-from-localstorage "project1")]
+            (timbre/info "Loaded existing state from localStorage")
+            (reset! *state state-from-localstorage))
 
-      (add-watch *state ::save-to-ls on-change-state-store-ls)
-      (add-watch *state ::update-active-tab update-active-tab!)
-      (add-watch *state ::update-players-table update-players-table!)
-      (add-watch *state ::update-teams-and-players update-teams-and-players)
-      (add-watch *state ::update-team-summaries update-team-summaries!)
-      (add-watch *state ::update-data-export update-data-export!)
+          (add-watch *state ::save-to-ls on-change-state-store-ls)
+          (add-watch *state ::update-active-tab update-active-tab!)
+          (add-watch *state ::update-players-table update-players-table!)
+          (add-watch *state ::update-teams-and-players update-teams-and-players)
+          (add-watch *state ::update-team-summaries update-team-summaries!)
+          (add-watch *state ::update-data-export update-data-export!)
 
-      (set-inner-html! "appContainer" (html (html/HatTourneyBuilder)))
-      (add-dom-events!)
-      (init-sortablejs!)
+          (set-inner-html! app-container-el (html (html/HatTourneyBuilder)))
+          (add-dom-events!)
+          (init-sortablejs!)
 
-      ;; trigger an initial render from state
-      (swap! *state identity))))
+          ;; trigger an initial render from state
+          (swap! *state identity))))))
 
 (.addEventListener js/window "load" init!)
