@@ -18,6 +18,7 @@
   },
   "devDependencies": {
     "serve": "14.1.2",
+    "shelljs": "0.8.5",
     "shadow-cljs": "2.20.15"
   }
 }

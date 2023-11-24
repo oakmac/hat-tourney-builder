@@ -2,6 +2,7 @@
 .DS_Store
 .lsp/
 .shadow-cljs/
+00_build/
 dist/
 node_modules/
 target/
