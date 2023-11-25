@@ -7,5 +7,6 @@ dist/
 node_modules/
 target/
 public/js/
+scripts/publish.sh
 
 *.diff
