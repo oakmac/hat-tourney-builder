@@ -2,6 +2,7 @@
 
  :dependencies
  [[binaryage/oops "0.7.2"]
+  [com.oakmac/cljs-util "4.0.0"]
   [com.taoensso/timbre "6.0.4"]
   [macchiato/hiccups "0.4.1"]]
 
