@@ -2,14 +2,14 @@
   (:require
     [clojure.set :as set]
     [clojure.string :as str]
+    [com.oakmac.cljs-util.base58 :refer [random-base58]]
     [com.oakmac.cljs-util.dom :as dom-util :refer [add-event! get-element query-select-all set-inner-html!]]
+    [com.oakmac.cljs-util.string :refer [safe-lower-case]]
     [goog.functions :as gfunctions]
     [goog.labs.format.csv :as csv]
     [hat-tourney-builder.html :as html]
-    [hat-tourney-builder.util.base58 :refer [random-base58]]
     [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
     [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id? looks-like-a-player-id? looks-like-a-team-id? female? male?]]
-    [hat-tourney-builder.util.string :refer [safe-lower-case]]
     [oops.core :refer [ocall oget oset!]]
     [taoensso.timbre :as timbre])
   (:require-macros
