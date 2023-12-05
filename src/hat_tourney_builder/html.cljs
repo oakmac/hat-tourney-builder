@@ -47,9 +47,15 @@
      [:td.unit-2dd1a [:strong (format-strength-number avg-strength)]]]]])
 
 (defn SingleColumn
-  [{:keys [all-players-column? players team-column? team-id title]}]
+  [{:keys [all-players-column? players _team-column? team-id title]}]
   [:div.column.column-87ea2
     [:h4.title.is-4 {:style "margin-bottom: 1rem;"} title]
+    (when all-players-column?
+      [:div.block
+        [:input {:class "input is-normal"
+                 :id "allPlayersSearchInput"
+                 :placeholder "Search All Players …"
+                 :type "text"}]])
     [:div.block {:id (str team-id "-summary")}]
     [:div {:id team-id
            :class "team-column col-wrapper-inner"}
@@ -57,10 +63,10 @@
 
 (defn Columns []
   [:div#columnsContainer.columns
-   (SingleColumn {:team-id "allPlayersList"
-                  :title "All Players"
-                  :players [] ; unteamed-players
-                  :all-players-column? true})])
+   (SingleColumn {:all-players-column? true
+                  :players []
+                  :team-id "allPlayersList"
+                  :title "All Players"})])
 
 (defn LinkBoxes []
   [:div {:style "display: flex; flex-direction: row"}

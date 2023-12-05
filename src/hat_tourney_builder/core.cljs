@@ -9,6 +9,7 @@
     [hat-tourney-builder.util.base58 :refer [random-base58]]
     [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
     [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id? looks-like-a-player-id? looks-like-a-team-id? female? male?]]
+    [hat-tourney-builder.util.string :refer [safe-lower-case]]
     [oops.core :refer [ocall oget oset!]]
     [taoensso.timbre :as timbre])
   (:require-macros
@@ -83,6 +84,7 @@
 (defonce *state
   (atom
     {:active-tab "PLAYERS_INPUT_TAB"
+     :all-players-search-txt ""
      :players {}
      :teams {}}))
 
@@ -368,7 +370,7 @@
       player
       (add-player-to-team! player team)
 
-      (and linked-players (not (empty? linked-players)))
+      (and linked-players (seq linked-players))
       (add-linked-players-to-team! linked-players team)
 
       :else
@@ -412,9 +414,17 @@
 
     ;; FIXME: remove teams from the DOM
 
+(defn hide-els! [el-ids]
+  (doseq [id el-ids]
+    (dom-util/hide-el! id)))
+
+(defn show-els! [el-ids]
+  (doseq [id el-ids]
+    (dom-util/show-el! id)))
+
 (defn update-players-in-all-players-column!
   "Updates the DOM inside of the All Players column."
-  [all-players]
+  [all-players filter-players-search-txt]
   (let [players-in-dom (get-players-in-dom-element "allPlayersList" all-players)
         link-groups-in-dom (get-link-groups-in-dom-element "allPlayersList" all-players)
         unteamed-players (filter
@@ -427,7 +437,9 @@
         unlinked-players (filter #(not (:link-id %)) unteamed-players)
         unlinked-player-ids-in-dom (set (map :id unlinked-players-in-dom))
         linked-players (filter linked-player? unteamed-players)
-        link-groups (group-by :link-id linked-players)]
+        all-link-group-ids (set (map :link-id linked-players))
+        link-groups (group-by :link-id linked-players)
+        search-txt-lc (safe-lower-case filter-players-search-txt)]
     ;; build link boxes
     (doseq [[link-id players] link-groups]
       (when-not (get link-groups-in-dom link-id)
@@ -436,7 +448,37 @@
     ;; build solo players
     (doseq [p unlinked-players]
       (when-not (contains? unlinked-player-ids-in-dom (:id p))
-        (dom-util/append-html! "allPlayersList" (html (html/PlayerBox p)))))))
+        (dom-util/append-html! "allPlayersList" (html (html/PlayerBox p)))))
+
+    ;; toggle show/hide for player search
+    ;; TODO: break this out into it's own function, make this cleaner
+    (let [filtered-players (if-not (str/blank? search-txt-lc)
+                             (filter
+                               (fn [{:keys [name] :as _player}]
+                                 (str/includes? (str/lower-case name) search-txt-lc))
+                               unteamed-players)
+                             unteamed-players)
+          filtered-player-ids (set (map :id filtered-players))
+          unlinked-players-ids (set (map :id unlinked-players))
+          unlinked-player-ids-to-hide (set/difference unlinked-players-ids filtered-player-ids)
+          filtered-link-group-ids (if-not (str/blank? search-txt-lc)
+                                    (->> link-groups
+                                      (filter
+                                        (fn [[_link-id players]]
+                                          (some
+                                            (fn [{:keys [name] :as _player}]
+                                              (str/includes? (str/lower-case name) search-txt-lc))
+                                            players)))
+                                      (map first)
+                                      set)
+                                    (keys link-groups))
+          linked-player-ids-to-hide (set/difference all-link-group-ids filtered-link-group-ids)]
+      (show-els! filtered-player-ids)
+      (show-els! filtered-link-group-ids)
+      (hide-els! unlinked-player-ids-to-hide)
+      (hide-els! linked-player-ids-to-hide)
+      ;; set Search Bar text value
+      (oset! (get-element "allPlayersSearchInput") "value" filter-players-search-txt))))
 
 ;; NOTE: update-players-in-team-column! and update-players-in-all-players-column! functions could be combined
 (defn update-players-in-team-column!
@@ -466,7 +508,7 @@
         players-in-link-box (filter :inside-link-box? (vals all-players))
         sorted-linked-players (sort compare-players players-in-link-box)
         players-in-unlink-box (filter :inside-unlink-box? (vals all-players))]
-    (update-players-in-all-players-column! all-players)
+    (update-players-in-all-players-column! all-players (:all-players-search-txt new-state))
 
     ;; update players in LinkBox
     (if (empty? players-in-link-box)
@@ -543,6 +585,17 @@
             10))
       (timbre/info "did NOT destroy all players"))))
 
+(defn onkeyup-all-players-search
+  [js-evt]
+  (when-let [target-el (oget js-evt "target")]
+    (let [txt (oget target-el "value")]
+      (swap! *state assoc :all-players-search-txt txt))))
+
+(def debounced-onkeyup-all-players-search
+  (gfunctions/debounce
+    onkeyup-all-players-search
+    50))
+
 (def add-dom-events!
   (gfunctions/once
     (fn []
@@ -555,7 +608,9 @@
       (add-event! "TEAM_COLUMNS_TAB" "click" click-tab)
       (add-event! "EXPORT_TAB" "click" click-tab)
 
-      (add-event! "addTeamBtn" "click" click-add-team-btn))))
+      (add-event! "addTeamBtn" "click" click-add-team-btn)
+
+      (add-event! "allPlayersSearchInput" "keyup" debounced-onkeyup-all-players-search))))
 
 (def init-sortablejs!
   (gfunctions/once
