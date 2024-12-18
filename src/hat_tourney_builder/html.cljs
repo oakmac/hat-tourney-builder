@@ -147,6 +147,7 @@
       [:li#PLAYERS_INPUT_TAB_LI
         [:a#PLAYERS_INPUT_TAB {:href "#"} "Players Input"]]
       [:li#LINK_PLAYERS_TAB_LI
+        {:style "display:none"}
         [:a#LINK_PLAYERS_TAB {:href "#"} "Link Players"]]
       [:li#TEAM_COLUMNS_TAB_LI
         [:a#TEAM_COLUMNS_TAB {:href "#"} "Teams Sorting"]]

@@ -208,7 +208,9 @@
   (let [teams (:teams new-state)
         all-players (:players new-state)]
     (doseq [team-id (keys teams)]
-      (update-team-summary! team-id all-players))))
+      (update-team-summary! team-id all-players))
+    ;; update the "All Players" summary column
+    (update-team-summary! "allPlayersList" all-players)))
 
 (defn build-teams-and-players-str [{:keys [players teams]}]
   (let [sorted-teams (sort-by :title (vals teams))
