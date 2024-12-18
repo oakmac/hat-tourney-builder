@@ -19,7 +19,7 @@
 ;; Public API
 
 (defn PlayerBox
-  [{:keys [id name sex rank]}]
+  [{:keys [id name sex _rank]}]
   [:div {:id id
          :class (str "player-box "
                      (case sex
@@ -47,9 +47,21 @@
      [:td.unit-2dd1a [:strong (format-strength-number avg-strength)]]]]])
 
 (defn SingleColumn
-  [{:keys [all-players-column? players _team-column? team-id title]}]
+  [{:keys [all-players-column? _locked? players _team-column? team-id title]}]
   [:div.column.column-87ea2
-    [:h4.title.is-4 {:style "margin-bottom: 1rem;"} title]
+    [:h4.title.is-4 {:style "margin-bottom: 1rem;"}
+      title]
+    [:button.button.is-small.unlock-btn-99b2a
+      {:data-team-id team-id
+       :id (str team-id "-unlockBtn")
+       :style "display:none"}
+      "🔒 Unlock Team"]
+    [:button.button.is-small.lock-btn-14ec2
+      {:data-team-id team-id
+       :id (str team-id "-lockBtn")
+       :style "display:none"}
+      "🔓 Lock Team"]
+    [:div {:style "height: 12px"}]
     (when all-players-column?
       [:div.block
         [:input {:class "input is-normal"

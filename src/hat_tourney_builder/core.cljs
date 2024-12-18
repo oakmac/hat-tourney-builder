@@ -18,6 +18,9 @@
 ;; FIXME: when we remove a team, we need to automatically move all of the players on that team
 ;; to unteamed
 
+(def js-team-sortables
+  (atom {}))
+
 (defn- reload-page! []
   (oset! js/window "location.href" (oget js/window "location.href")))
 
@@ -232,6 +235,25 @@
     (set-inner-html! "teamsAndPlayersTextarea" (build-teams-and-players-str new-state))
     (set-inner-html! "exportEDNTextarea" (pr-str new-state))))
 
+(defn update-team-locks!
+  [_ _ _old-state {:keys [teams] :as _new-state}]
+  (doseq [[team-id team] teams]
+    (let [lock-btn-el-id (str team-id "-lockBtn")
+          unlock-btn-el-id (str team-id "-unlockBtn")
+          lock-btn-el (get-element lock-btn-el-id)
+          unlock-btn-el (get-element unlock-btn-el-id)
+          js-team-sortable (get @js-team-sortables team-id)]
+      (when (and lock-btn-el unlock-btn-el js-team-sortable)
+        (if (:locked? team)
+          (do
+            (dom-util/set-style-prop! lock-btn-el-id "display" "none")
+            (dom-util/set-style-prop! unlock-btn-el-id "display" "")
+            (ocall js-team-sortable "option" "disabled" true))
+          (do
+            (dom-util/set-style-prop! lock-btn-el-id "display" "")
+            (dom-util/set-style-prop! unlock-btn-el-id "display" "none")
+            (ocall js-team-sortable "option" "disabled" false)))))))
+
 (defn parse-gender-str [s1]
   (let [s2 (some-> s1 str str/trim str/lower-case)]
     (case s2
@@ -381,10 +403,11 @@
           nil))))
 
 (defn init-single-team-sortable! [team-id]
-  (init-sortable-list!
-    team-id
-    {:on-add (fn [js-evt]
-               (add-element-to-team-column js-evt team-id))}))
+  (let [js-sortable (init-sortable-list!
+                      team-id
+                      {:on-add (fn [js-evt]
+                                 (add-element-to-team-column js-evt team-id))})]
+    (swap! js-team-sortables assoc team-id js-sortable)))
 
 (defn get-team-ids-from-dom
   "returns a set of the team-ids currently in the DOM"
@@ -598,6 +621,32 @@
     onkeyup-all-players-search
     50))
 
+(defn lock-btn-el? [el]
+  (and
+    (= "button" (some-> (oget el "tagName") str/lower-case))
+    (ocall el "classList.contains" "lock-btn-14ec2")))
+
+(defn unlock-btn-el? [el]
+  (and
+    (= "button" (some-> (oget el "tagName") str/lower-case))
+    (ocall el "classList.contains" "unlock-btn-99b2a")))
+
+(defn click-lock-btn [js-evt]
+  (when-let [target-el (oget js-evt "target")]
+    (when (lock-btn-el? target-el)
+      (let [team-id (oget target-el "dataset.teamId")]
+        (if-not (get-in @*state [:teams team-id])
+          (timbre/warn "click-lock-btn invalid team-id:" team-id)
+          (swap! *state assoc-in [:teams team-id :locked?] true))))))
+
+(defn click-unlock-btn [js-evt]
+  (when-let [target-el (oget js-evt "target")]
+    (when (unlock-btn-el? target-el)
+      (let [team-id (oget target-el "dataset.teamId")]
+        (if-not (get-in @*state [:teams team-id])
+          (timbre/warn "click-unlock-btn invalid team-id:" team-id)
+          (swap! *state assoc-in [:teams team-id :locked?] false))))))
+
 (def add-dom-events!
   (gfunctions/once
     (fn []
@@ -612,7 +661,10 @@
 
       (add-event! "addTeamBtn" "click" click-add-team-btn)
 
-      (add-event! "allPlayersSearchInput" "keyup" debounced-onkeyup-all-players-search))))
+      (add-event! "allPlayersSearchInput" "keyup" debounced-onkeyup-all-players-search)
+
+      (add-event! "columnsContainer" "click" click-lock-btn)
+      (add-event! "columnsContainer" "click" click-unlock-btn))))
 
 (def init-sortablejs!
   (gfunctions/once
@@ -650,6 +702,7 @@
           (add-watch *state ::update-teams-and-players update-teams-and-players)
           (add-watch *state ::update-team-summaries update-team-summaries!)
           (add-watch *state ::update-data-export update-data-export!)
+          (add-watch *state ::update-team-locks update-team-locks!)
 
           (set-inner-html! app-container-el (html (html/HatTourneyBuilder)))
           (add-dom-events!)
