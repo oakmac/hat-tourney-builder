@@ -14,9 +14,11 @@
   },
   "scripts": {
     "build": "shadow-cljs release app",
+    "format": "standard-clj fix src/",
     "server": "serve public/"
   },
   "devDependencies": {
+    "@chrisoakman/standard-clojure-style": "0.18.0",
     "serve": "14.1.2",
     "shelljs": "0.8.5",
     "shadow-cljs": "2.20.15"

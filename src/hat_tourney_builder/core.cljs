@@ -1,19 +1,19 @@
 (ns hat-tourney-builder.core
-  (:require
-    [clojure.set :as set]
-    [clojure.string :as str]
-    [com.oakmac.cljs-util.base58 :refer [random-base58]]
-    [com.oakmac.cljs-util.dom :as dom-util :refer [add-event! get-element query-select-all set-inner-html!]]
-    [com.oakmac.cljs-util.string :refer [safe-lower-case]]
-    [goog.functions :as gfunctions]
-    [goog.labs.format.csv :as csv]
-    [hat-tourney-builder.html :as html]
-    [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
-    [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id? looks-like-a-player-id? looks-like-a-team-id? female? male?]]
-    [oops.core :refer [ocall oget oset!]]
-    [taoensso.timbre :as timbre])
   (:require-macros
-    [hiccups.core :as hiccups :refer [html]]))
+   [hiccups.core :as hiccups :refer [html]])
+  (:require
+   [clojure.set :as set]
+   [clojure.string :as str]
+   [com.oakmac.cljs-util.base58 :refer [random-base58]]
+   [com.oakmac.cljs-util.dom :as dom-util :refer [add-event! get-element query-select-all set-inner-html!]]
+   [com.oakmac.cljs-util.string :refer [safe-lower-case]]
+   [goog.functions :as gfunctions]
+   [goog.labs.format.csv :as csv]
+   [hat-tourney-builder.html :as html]
+   [hat-tourney-builder.util.localstorage :refer [read-clj-from-localstorage set-clj-to-localstorage!]]
+   [hat-tourney-builder.util.predicates :refer [female? looks-like-a-link-id? looks-like-a-player-id? looks-like-a-team-id? male?]]
+   [oops.core :refer [ocall oget oset!]]
+   [taoensso.timbre :as timbre]))
 
 ;; FIXME: when we remove a team, we need to automatically move all of the players on that team
 ;; to unteamed

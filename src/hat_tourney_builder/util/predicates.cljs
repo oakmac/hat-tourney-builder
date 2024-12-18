@@ -1,6 +1,6 @@
 (ns hat-tourney-builder.util.predicates
   (:require
-    [clojure.string :as str]))
+   [clojure.string :as str]))
 
 (defn looks-like-a-link-id?
   [id]

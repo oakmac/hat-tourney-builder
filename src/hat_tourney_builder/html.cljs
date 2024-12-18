@@ -1,10 +1,10 @@
 (ns hat-tourney-builder.html
-  (:require
-    [hiccups.runtime :as hiccups]
-    [taoensso.timbre :as timbre]
-    [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id?]])
   (:require-macros
-    [hiccups.core :as hiccups]))
+   [hiccups.core :as hiccups])
+  (:require
+   [hat-tourney-builder.util.predicates :refer [looks-like-a-link-id?]]
+   [hiccups.runtime :as hiccups]
+   [taoensso.timbre :as timbre]))
 
 ;; -----------------------------------------------------------------------------
 ;; Helpers
@@ -27,7 +27,7 @@
                        "female" "sex-female"
                        ;; TODO: warn here
                        nil))}
-    name])
+   name])
 
 (defn TeamSummary
   [{:keys [avg-strength num-females num-males total]}]
@@ -49,29 +49,29 @@
 (defn SingleColumn
   [{:keys [all-players-column? _locked? players _team-column? team-id title]}]
   [:div.column.column-87ea2
-    [:h4.title.is-4 {:style "margin-bottom: 1rem;"}
-      title]
-    [:button.button.is-small.unlock-btn-99b2a
-      {:data-team-id team-id
-       :id (str team-id "-unlockBtn")
-       :style "display:none"}
-      "🔒 Unlock Team"]
-    [:button.button.is-small.lock-btn-14ec2
-      {:data-team-id team-id
-       :id (str team-id "-lockBtn")
-       :style "display:none"}
-      "🔓 Lock Team"]
-    [:div {:style "height: 12px"}]
-    (when all-players-column?
-      [:div.block
-        [:input {:class "input is-normal"
-                 :id "allPlayersSearchInput"
-                 :placeholder "Search All Players …"
-                 :type "text"}]])
-    [:div.block {:id (str team-id "-summary")}]
-    [:div {:id team-id
-           :class "team-column col-wrapper-inner"}
-      (doall (map PlayerBox players))]])
+   [:h4.title.is-4 {:style "margin-bottom: 1rem;"}
+    title]
+   [:button.button.is-small.unlock-btn-99b2a
+    {:data-team-id team-id
+     :id (str team-id "-unlockBtn")
+     :style "display:none"}
+    "🔒 Unlock Team"]
+   [:button.button.is-small.lock-btn-14ec2
+    {:data-team-id team-id
+     :id (str team-id "-lockBtn")
+     :style "display:none"}
+    "🔓 Lock Team"]
+   [:div {:style "height: 12px"}]
+   (when all-players-column?
+     [:div.block
+      [:input {:class "input is-normal"
+               :id "allPlayersSearchInput"
+               :placeholder "Search All Players …"
+               :type "text"}]])
+   [:div.block {:id (str team-id "-summary")}]
+   [:div {:id team-id
+          :class "team-column col-wrapper-inner"}
+    (doall (map PlayerBox players))]])
 
 (defn Columns []
   [:div#columnsContainer.columns
@@ -83,11 +83,11 @@
 (defn LinkBoxes []
   [:div {:style "display: flex; flex-direction: row"}
    [:div {:style "margin-right: 1em"}
-     [:h2 "Link Box"]
-     [:div#linkBox]]
+    [:h2 "Link Box"]
+    [:div#linkBox]]
    [:div
-     [:h2 "Unlink Box"]
-     [:div#unlinkBox]]])
+    [:h2 "Unlink Box"]
+    [:div#unlinkBox]]])
 
 (defn LinkedPlayersBox [players]
   (let [link-ids (map :link-id players)
@@ -96,28 +96,28 @@
     (assert (looks-like-a-link-id? (first link-ids)))
     (assert (= 1 (count link-ids-set)))
     [:div.linked-players-box
-      {:id (first link-ids-set)}
-      (map PlayerBox players)]))
+     {:id (first link-ids-set)}
+     (map PlayerBox players)]))
 
 (defn PlayerRow [{:keys [id name sex strength]}]
   [:tr {:data-player-id id}
-    [:td name]
-    [:td sex]
-    [:td strength]
-    [:td id]
-    [:td [:button {:data-player-id id} "remove"]]])
+   [:td name]
+   [:td sex]
+   [:td strength]
+   [:td id]
+   [:td [:button {:data-player-id id} "remove"]]])
 
 (defn PlayersTable
   [sorted-players]
   [:table
-    [:thead
-      [:tr
-        [:th "Name"]
-        [:th "Gender"]
-        [:th "Strength"]
-        [:th "id"]]]
-    [:tbody
-      (map PlayerRow sorted-players)]])
+   [:thead
+    [:tr
+     [:th "Name"]
+     [:th "Gender"]
+     [:th "Strength"]
+     [:th "id"]]]
+   [:tbody
+    (map PlayerRow sorted-players)]])
 
 (def example-csv-input-str
   (str "John,m,6\n"
@@ -138,8 +138,8 @@
      [:h4 "Enter as CSV: Name, Sex, Strength"]
      [:p "One player per row. Separate with commas: Name, Sex, Strength"]
      [:textarea#inputPlayersTextarea
-       {:style "width: 100%; min-height: 400px"}
-       example-csv-input-str]]
+      {:style "width: 100%; min-height: 400px"}
+      example-csv-input-str]]
     [:div {:style "flex: 1; padding: 8px 16px"}
      [:button#destroyAllPlayersBtn.button.is-danger "Destroy All Players"]
      [:h4 "Current Players"]
@@ -148,23 +148,23 @@
 (defn DragAndDropColumns []
   [:div
    [:div.block
-     [:button#addTeamBtn.button.is-primary "Add Team"]]
+    [:button#addTeamBtn.button.is-primary "Add Team"]]
    ; [:button#removeColumnBtn "Remove Column"]
    (Columns)
    (LinkBoxes)])
 
 (defn TopPageTabs []
   [:div.tabs.is-boxed
-    [:ul#topPageTabsList
-      [:li#PLAYERS_INPUT_TAB_LI
-        [:a#PLAYERS_INPUT_TAB {:href "#"} "Players Input"]]
-      [:li#LINK_PLAYERS_TAB_LI
-        {:style "display:none"}
-        [:a#LINK_PLAYERS_TAB {:href "#"} "Link Players"]]
-      [:li#TEAM_COLUMNS_TAB_LI
-        [:a#TEAM_COLUMNS_TAB {:href "#"} "Teams Sorting"]]
-      [:li#EXPORT_TAB_LI
-        [:a#EXPORT_TAB {:href "#"} "Data Export"]]]])
+   [:ul#topPageTabsList
+    [:li#PLAYERS_INPUT_TAB_LI
+     [:a#PLAYERS_INPUT_TAB {:href "#"} "Players Input"]]
+    [:li#LINK_PLAYERS_TAB_LI
+     {:style "display:none"}
+     [:a#LINK_PLAYERS_TAB {:href "#"} "Link Players"]]
+    [:li#TEAM_COLUMNS_TAB_LI
+     [:a#TEAM_COLUMNS_TAB {:href "#"} "Teams Sorting"]]
+    [:li#EXPORT_TAB_LI
+     [:a#EXPORT_TAB {:href "#"} "Data Export"]]]])
 
 (defn HatTourneyBuilder []
   [:section.section

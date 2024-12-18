@@ -1,6 +1,6 @@
 (ns hat-tourney-builder.util.localstorage
   (:require
-    [clojure.edn :as edn]))
+   [clojure.edn :as edn]))
 
 (defn set-localstorage!
   [k v]
