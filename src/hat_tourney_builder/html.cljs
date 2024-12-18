@@ -30,7 +30,7 @@
    name])
 
 (defn TeamSummary
-  [{:keys [avg-strength num-females num-males total]}]
+  [{:keys [avg-strength num-baggages num-baggaged-players num-females num-males total]}]
   [:table.table.is-fullwidth.is-narrow.tbl-725ca
    [:tbody
     [:tr
@@ -44,7 +44,13 @@
      [:td.unit-2dd1a [:strong num-males]]]
     [:tr
      [:td "Avg Strength"]
-     [:td.unit-2dd1a [:strong (format-strength-number avg-strength)]]]]])
+     [:td.unit-2dd1a [:strong (format-strength-number avg-strength)]]]
+    [:tr
+     [:td "Baggages"]
+     [:td.unit-2dd1a [:strong num-baggages]]]
+    [:tr
+     [:td "Baggaged Players"]
+     [:td.unit-2dd1a [:strong num-baggaged-players]]]]])
 
 (defn SingleColumn
   [{:keys [all-players-column? _locked? players _team-column? team-id title]}]

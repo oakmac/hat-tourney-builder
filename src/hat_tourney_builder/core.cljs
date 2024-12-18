@@ -99,7 +99,16 @@
    :avg-strength (if (zero? (count players))
                    0
                    (/ (reduce + 0 (map :strength players))
-                      (count players)))})
+                      (count players)))
+   :num-baggaged-players (->> players
+                           (map :link-id)
+                           (remove nil?)
+                           count)
+   :num-baggages (->> players
+                   (map :link-id)
+                   (remove nil?)
+                   set
+                   count)})
 
 (defn get-link-ids-in-dom-element
   "returns a collection of all link ids within a DOM element"
