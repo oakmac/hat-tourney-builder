@@ -142,10 +142,10 @@
    (get-players-in-dom-element el-id (:players @*state)))
   ([el-id all-players-map]
    (let [player-ids (get-player-ids-in-dom-element el-id)
-         players (map
-                   (fn [player-id]
+         players (map-indexed
+                   (fn [idx player-id]
                      (if-let [p (get all-players-map player-id)]
-                       p
+                       (assoc p :colIdx idx)
                        (timbre/warn "Unable to find player with id:" player-id)))
                    player-ids)]
      (remove nil? players))))
@@ -305,13 +305,14 @@
          players-vec)))))
 
 (defn init-sortable-list!
-  [id {:keys [on-add on-remove]}]
+  [id {:keys [on-add on-change on-remove]}]
   (js/window.Sortable.
     (get-element id)
     (js-obj "animation" 150
             "group" (js-obj "name" "shared")
-            "onAdd" (when on-add on-add)
-            "onRemove" (when on-remove on-remove))))
+            "onAdd" (when (fn? on-add) on-add)
+            "onRemove" (when (fn? on-remove) on-remove)
+            "onChange" (when (fn? on-change) on-change))))
             ; "removeCloneOnHide" false
             ; "pull" "clone")))
             ; "onClone" (fn [js-evt]
@@ -373,6 +374,26 @@
     (timbre/info (str "Added player " (:name player) " (" player-id ") "
                       "to team " (:title team) " (" team-id ")"))))
 
+(defn read-players-from-dom-and-update-state-for-team-column!
+  [team-id]
+  (let [players-in-column (get-players-in-dom-element team-id)]
+    (swap! *state update-in [:players]
+      (fn [current-players]
+        (reduce
+          (fn [new-players p]
+            (let [player-id (:id p)
+                  player (get current-players player-id)]
+              (if-not player
+                (do
+                  (timbre/warn "Player in DOM element not found in players map:" player-id)
+                  new-players)
+                (assoc new-players
+                  player-id (assoc p :team-id team-id
+                                     :inside-link-box? false
+                                     :inside-unlink-box? false)))))
+          current-players
+          players-in-column)))))
+
 (defn add-linked-players-to-team!
   [linked-players team]
   (let [team-id (:team-id team)
@@ -400,8 +421,11 @@
                          (filter #(= el-id (:link-id %)) (vals players)))]
     (assert team (str "Unrecognized team-id: " team-id))
     (cond
+      ; player
+      ; (add-player-to-team! player team)
+
       player
-      (add-player-to-team! player team)
+      (read-players-from-dom-and-update-state-for-team-column! team-id)
 
       (and linked-players (seq linked-players))
       (add-linked-players-to-team! linked-players team)
@@ -415,7 +439,9 @@
   (let [js-sortable (init-sortable-list!
                       team-id
                       {:on-add (fn [js-evt]
-                                 (add-element-to-team-column js-evt team-id))})]
+                                 (add-element-to-team-column js-evt team-id))
+                       :on-change (fn [js-evt]
+                                    (read-players-from-dom-and-update-state-for-team-column! team-id))})]
     (swap! js-team-sortables assoc team-id js-sortable)))
 
 (defn get-team-ids-from-dom
@@ -518,20 +544,22 @@
 (defn update-players-in-team-column!
   [players-on-team team]
   (let [team-id (:team-id team)
+        ; sorted
         players-in-dom (get-players-in-dom-element team-id)
         link-groups-in-dom (get-link-groups-in-dom-element team-id)
         unlinked-players-in-dom (filter #(not (:link-id %)) players-in-dom)
         unlinked-players (filter #(not (:link-id %)) players-on-team)
         unlinked-player-ids-in-dom (set (map :id unlinked-players-in-dom))
         linked-players (filter linked-player? players-on-team)
-        link-groups (group-by :link-id linked-players)]
+        link-groups (group-by :link-id linked-players)
+        sorted-unlinked-players (sort-by :colIdx unlinked-players)]
     ;; build link boxes
     (doseq [[link-id players] link-groups]
       (when-not (get link-groups-in-dom link-id)
         (dom-util/append-html! team-id (html (html/LinkedPlayersBox (sort compare-players players))))))
 
     ;; build solo players
-    (doseq [p unlinked-players]
+    (doseq [p sorted-unlinked-players]
       (when-not (contains? unlinked-player-ids-in-dom (:id p))
         (dom-util/append-html! team-id (html (html/PlayerBox p)))))))
 
