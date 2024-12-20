@@ -19,7 +19,7 @@
 ;; Public API
 
 (defn PlayerBox
-  [{:keys [id name sex _rank]}]
+  [{:keys [id name sex strength _rank]}]
   [:div {:id id
          :class (str "player-box "
                      (case sex
@@ -27,7 +27,7 @@
                        "female" "sex-female"
                        ;; TODO: warn here
                        nil))}
-   name])
+   (str name " [" strength "]")])
 
 (defn TeamSummary
   [{:keys [avg-strength num-baggages num-baggaged-players num-females num-males total]}]
